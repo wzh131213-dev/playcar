@@ -28,8 +28,14 @@ jobs:
           const fixed = 'Af.set(this,"v6/")}getLeaderboard(){return Promise.reject(new Error("Leaderboard disabled"))}getLeaderboardUserEntry(){return Promise.reject(new Error("Leaderboard disabled"))}getRecordings(e){';
           const count = source.split(broken).length - 1;
           if (count !== 1) throw new Error(`Expected exactly one malformed method sequence, found ${count}; refusing to modify the bundle.`);
-          fs.writeFileSync(file, source.replace(broken, fixed));
-          console.log('Repaired the malformed class method boundaries.');
+          source = source.replace(broken, fixed);
+          const submitBroken = '}}submitLeaderboard(){return Promise.reject(new Error("Leaderboard disabled"))}submitUserProfile';
+          const submitFixed = '}submitLeaderboard(){return Promise.reject(new Error("Leaderboard disabled"))}submitUserProfile';
+          const submitCount = source.split(submitBroken).length - 1;
+          if (submitCount !== 1) throw new Error(`Expected exactly one malformed submitLeaderboard boundary, found ${submitCount}; refusing to modify the bundle.`);
+          source = source.replace(submitBroken, submitFixed);
+          fs.writeFileSync(file, source);
+          console.log('Repaired leaderboard method boundaries.');
           NODE
 
       - name: Validate JavaScript syntax
