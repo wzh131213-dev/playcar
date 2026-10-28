@@ -27,16 +27,21 @@ jobs:
           const broken = 'Af.set(this,"v6/")}}getLeaderboard(){return Promise.reject(new Error("Leaderboard disabled"))}}getLeaderboardUserEntry(){return Promise.reject(new Error("Leaderboard disabled"))}getRecordings(e){';
           const fixed = 'Af.set(this,"v6/")}getLeaderboard(){return Promise.reject(new Error("Leaderboard disabled"))}getLeaderboardUserEntry(){return Promise.reject(new Error("Leaderboard disabled"))}getRecordings(e){';
           const count = source.split(broken).length - 1;
-          if (count !== 1) {
-            throw new Error(`Expected exactly one malformed method sequence, found ${count}; refusing to modify the bundle.`);
-          }
-          source = source.replace(broken, fixed);
-          fs.writeFileSync(file, source);
+          if (count !== 1) throw new Error(`Expected exactly one malformed method sequence, found ${count}; refusing to modify the bundle.`);
+          fs.writeFileSync(file, source.replace(broken, fixed));
           console.log('Repaired the malformed class method boundaries.');
           NODE
 
       - name: Validate JavaScript syntax
-        run: node --check main.bundle.js
+        shell: bash
+        run: |
+          set -euo pipefail
+          if node --check main.bundle.js >/tmp/syntax.log 2>&1; then
+            echo "JavaScript syntax validation passed."
+          else
+            tail -n 3 /tmp/syntax.log
+            exit 1
+          fi
 
       - name: Commit repaired bundle
         shell: bash
