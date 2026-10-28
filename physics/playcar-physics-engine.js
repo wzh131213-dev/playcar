@@ -185,7 +185,7 @@
     tireGrip:1.65,handbrakeGrip:.38,handbrakeYawMultiplier:1.55,
     airYawRate:.62,airPitchRate:.55,airRollRate:.82,
     wheelbaseHalf:1.35,trackHalfWidth:.78,wheelProbeY:.07,
-    suspensionRestLength:.09,suspensionReach:.42,contactPositionGain:.72,
+    suspensionRestLength:.09,suspensionReach:.9,contactPositionGain:.72,
     collisionRestitution:.16,collisionFriction:.42,
     bodyHalfExtents:{x:1.05,y:.84,z:2.1},bodyCenterY:.84,
     maxCollisionIterations:3
@@ -293,14 +293,15 @@
       else s.collisionState='none';
       const contactsBefore=this._wheelContacts();
       const contactThreshold=c.suspensionRestLength+.12;
-      const supportedBefore=contactsBefore.filter(h=>h.distance<=contactThreshold);
+      const supportedBefore=contactsBefore.filter(h=>h.distance<=contactThreshold || h.signedDistance<c.suspensionRestLength);
       const wasGrounded=supportedBefore.length>=2;
       let normal=V.make(0,1,0);
       if(wasGrounded){
         const sum=supportedBefore.reduce((v,h)=>V.add(v,h.normal),V.make(0,0,0));normal=V.norm(sum);
         if(V.len2(normal)>EPS)s.contactNormal=normal;
       }
-      const steer=V.clamp((input.right?1:0)-(input.left?1:0),-1,1);
+      // Positive yaw rotates the -Z forward vector toward -X (left), so map left to +1.
+      const steer=V.clamp((input.left?1:0)-(input.right?1:0),-1,1);
       const throttle=V.clamp(Number(input.throttle??(input.gas?1:0))||0,0,1);
       const brake=V.clamp(Number(input.brake)||0,0,1);
       const handbrake=V.clamp(Number(input.handbrake??(input.hand?1:0))||0,0,1);
@@ -338,14 +339,15 @@
       if(velocityMagnitude>c.maxSpeed*1.35)s.velocity=V.mul(s.velocity,(c.maxSpeed*1.35)/velocityMagnitude);
       s.position=V.add(s.position,V.mul(s.velocity,dt));
       this._applyStaticCollisions();
-      const contacts=this._wheelContacts().filter(h=>h.distance<=contactThreshold);
+      const contacts=this._wheelContacts().filter(h=>h.distance<=contactThreshold || h.signedDistance<c.suspensionRestLength);
       if(contacts.length>=2){
         let nsum=V.make(0,0,0),correction=V.make(0,0,0),correctionCount=0;
         let strongestImpact=0;
         for(const h of contacts){
           nsum=V.add(nsum,h.normal);
-          if(h.distance<c.suspensionRestLength){
-            const depth=c.suspensionRestLength-h.distance;
+          if(h.signedDistance<c.suspensionRestLength){
+            // Signed distance recovers probes that have crossed through the road triangle.
+            const depth=c.suspensionRestLength-h.signedDistance;
             correction=V.add(correction,V.mul(h.normal,depth));correctionCount++;
           }
           const vn=V.dot(s.velocity,h.normal);
