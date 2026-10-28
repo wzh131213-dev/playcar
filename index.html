@@ -50,20 +50,20 @@ for(let i=0;i<samples.length;i++){
 }
 // Replace a section of the original route with a closed vertical loop and a smooth exit connector.
 const loopStart=180,loopEnd=240,base=samples.map(p=>p.clone());
-const start=base[loopStart].clone(),end=base[loopEnd].clone();
+const loopOrigin=base[loopStart].clone(),end=base[loopEnd].clone();
 const baseTangent=base[(loopStart+1)%base.length].clone().sub(base[(loopStart-1+base.length)%base.length]).normalize();
 const endTangent=base[(loopEnd+1)%base.length].clone().sub(base[loopEnd-1].clone()).normalize();
 const loopRadius=13,loopCount=144,loopPoints=[];
 const loopUp=new THREE.Vector3(0,1,0);
 for(let i=0;i<=loopCount;i++){
   const a=i/loopCount*Math.PI*2;
-  loopPoints.push(start.clone().addScaledVector(baseTangent,loopRadius*Math.sin(a)).addScaledVector(loopUp,loopRadius*(1-Math.cos(a))));
+  loopPoints.push(loopOrigin.clone().addScaledVector(baseTangent,loopRadius*Math.sin(a)).addScaledVector(loopUp,loopRadius*(1-Math.cos(a))));
 }
 const connectorCount=36,connector=[];
-const chord=start.distanceTo(end),c1=start.clone().addScaledVector(baseTangent,Math.max(10,chord*.38)),c2=end.clone().addScaledVector(endTangent,-Math.max(10,chord*.38));
+const chord=loopOrigin.distanceTo(end),c1=loopOrigin.clone().addScaledVector(baseTangent,Math.max(10,chord*.38)),c2=end.clone().addScaledVector(endTangent,-Math.max(10,chord*.38));
 for(let i=1;i<=connectorCount;i++){
   const t=i/connectorCount,u=1-t;
-  connector.push(start.clone().multiplyScalar(u*u*u).addScaledVector(c1,3*u*u*t).addScaledVector(c2,3*u*t*t).addScaledVector(end,t*t*t));
+  connector.push(loopOrigin.clone().multiplyScalar(u*u*u).addScaledVector(c1,3*u*u*t).addScaledVector(c2,3*u*t*t).addScaledVector(end,t*t*t));
 }
 samples=[...base.slice(0,loopStart+1),...loopPoints.slice(1),...connector,...base.slice(loopEnd+1)];
 N=samples.length;
