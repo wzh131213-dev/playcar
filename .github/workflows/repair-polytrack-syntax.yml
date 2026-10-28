@@ -39,7 +39,7 @@ jobs:
           if node --check main.bundle.js >/tmp/syntax.log 2>&1; then
             echo "JavaScript syntax validation passed."
           else
-            tail -n 3 /tmp/syntax.log
+            grep -E "SyntaxError|Unexpected|Expected|main\\.bundle\\.js:[0-9]+" /tmp/syntax.log | tail -n 5 || true
             exit 1
           fi
 
