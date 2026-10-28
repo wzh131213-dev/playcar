@@ -11,3 +11,11 @@ The current `index.html` uses a browser-native vehicle model compatible with pla
 
 ## Important distinction
 This is a PolyTrack-like behavioral adaptation, not a direct port of the original WASM solver or its exact formulas/constants. The original solver's full behavior has not been reverse-engineered or validated against reference telemetry. A true direct WASM integration would also require adapting the original track geometry and car-state protocol.
+
+## Current PlayCar status (2026-10-28)
+
+The old “track-space dynamics” paragraph above records an earlier intermediate revision and is no longer the current implementation. The feature branch now contains **PlayCar Physics Engine 1.0**, an original JavaScript module in `physics/playcar-physics-engine.js`. It is integrated into `index.html` using the existing Three.js vehicle and road geometry. It implements fixed-step world-space motion, 3D triangle road queries, four wheel-probe contacts, gravity/air controls, landing response, triangle-vs-oriented-box static collision, checkpoints, state interpolation, and an optional physics debug panel.
+
+The regression suite lives in `tests/playcar-physics.test.js` and is run by `.github/workflows/playcar-physics-tests.yml`. The authoritative status is the GitHub Actions result for the latest commit; a real iPad/iPhone browser playtest remains necessary.
+
+The existing procedural course is not a vertical loop or a set of designed jump ramps. A test mesh confirms 3D loop-surface queries only; it does not validate a complete drivable loop. Do not claim full loop-course support until genuine 3D track geometry is authored and tested. No PolyTrack WASM or proprietary implementation is included.
