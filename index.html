@@ -82,9 +82,9 @@ if(running&&!paused){
   const steeringAuthority=PHYS.steerRate*(1-speed01*(1-PHYS.highSpeedSteer));
   const desiredYawRate=steering*steeringAuthority*(0.22+speed/18)*(handbrake?1.28:1);
   // The yaw response has inertia instead of rotating the chassis instantly.
-  const yawRate=(desiredYawRate-headingError*PHYS.headingReturn*.08);
-  headingError += yawRate*dt;
-  headingError=THREE.MathUtils.clamp(headingError,-Math.PI,Math.PI);
+  const roadYawNow=Math.atan2(-tangents[nearestIndex].x,-tangents[nearestIndex].z);
+  headingError=Math.atan2(Math.sin(yaw-roadYawNow),Math.cos(yaw-roadYawNow));
+  const yawRate=desiredYawRate-headingError*PHYS.headingReturn*(speed > 4 ? .18 : .06);
 
   const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
   const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
