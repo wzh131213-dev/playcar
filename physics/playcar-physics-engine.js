@@ -300,8 +300,10 @@
         const sum=supportedBefore.reduce((v,h)=>V.add(v,h.normal),V.make(0,0,0));normal=V.norm(sum);
         if(V.len2(normal)>EPS)s.contactNormal=normal;
       }
-      // Positive yaw rotates the -Z forward vector toward -X (left), so map left to +1.
-      const steer=V.clamp((input.left?1:0)-(input.right?1:0),-1,1);
+      // Ground steering includes signed forward speed in yawRate below. With forward = -Z,
+      // left must use a negative steer value while moving forward; air yaw uses the opposite sign.
+      const steer=V.clamp((input.right?1:0)-(input.left?1:0),-1,1);
+      const airSteer=-steer;
       const throttle=V.clamp(Number(input.throttle??(input.gas?1:0))||0,0,1);
       const brake=V.clamp(Number(input.brake)||0,0,1);
       const handbrake=V.clamp(Number(input.handbrake??(input.hand?1:0))||0,0,1);
@@ -328,11 +330,11 @@
         yawRate=V.clamp(yawRate,-maxYaw,maxYaw);
         s.orientation=Q.normalize(Q.mul(Q.axis(normal,yawRate*dt),s.orientation));
       }else{
-        const airYaw=Q.axis(V.make(0,1,0),steer*c.airYawRate*dt);
+        const airYaw=Q.axis(V.make(0,1,0),airSteer*c.airYawRate*dt);
         s.orientation=Q.normalize(Q.mul(airYaw,s.orientation));
         const localRight=Q.rotate(s.orientation,V.make(1,0,0)),localForward=Q.rotate(s.orientation,V.make(0,0,-1));
         s.orientation=Q.normalize(Q.mul(Q.axis(localRight,((input.brake?1:0)-(input.gas||input.throttle?1:0))*c.airPitchRate*dt),s.orientation));
-        s.orientation=Q.normalize(Q.mul(Q.axis(localForward,-steer*c.airRollRate*dt),s.orientation));
+        s.orientation=Q.normalize(Q.mul(Q.axis(localForward,airSteer*c.airRollRate*dt),s.orientation));
       }
       s.velocity.y-=c.gravity*dt;
       const velocityMagnitude=V.len(s.velocity);
