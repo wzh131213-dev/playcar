@@ -35,15 +35,59 @@ scene.add(new THREE.HemisphereLight(0xe8f7ff,0x526b47,2.15));const sun=new THREE
 const mat=(color,roughness=.85)=>new THREE.MeshStandardMaterial({color,roughness,flatShading:true});
 const grassMat=mat(0x65a86a),roadMat=mat(0x363d49),edgeMat=mat(0xf4f3e8),redMat=mat(0xf04b3d,.45),darkMat=mat(0x17232f,.6),glassMat=new THREE.MeshStandardMaterial({color:0x83dce8,metalness:.2,roughness:.25}),tireMat=mat(0x10151c),yellowMat=mat(0xffd45a),whiteMat=mat(0xf7f8f0);
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(1100,1100),grassMat);ground.rotation.x=-Math.PI/2;ground.position.y=-18;ground.receiveShadow=true;scene.add(ground);
-const N=720, points=[], widths=[];for(let i=0;i<N;i++){const t=i/N*Math.PI*2;const x=Math.sin(t)*90+Math.sin(3*t)*20;const z=Math.cos(t)*115+Math.sin(2*t)*18;const y=2+Math.sin(3*t+.5)*8+Math.sin(7*t)*2.5;points.push(new THREE.Vector3(x,y,z));widths.push(13)}
-const curve=new THREE.CatmullRomCurve3(points,true,'catmullrom',.28);const samples=curve.getPoints(N);const tangents=samples.map((p,i)=>samples[(i+1)%N].clone().sub(samples[(i-1+N)%N]).normalize());const sideVectors=tangents.map(t=>new THREE.Vector3(-t.z,0,t.x).normalize());
-function roadMesh(offset,width,material,yOffset=0){const verts=[],uv=[],idx=[];for(let i=0;i<=N;i++){const j=i%N,p=samples[j],side=sideVectors[j];const a=p.clone().addScaledVector(side,offset-width/2);const b=p.clone().addScaledVector(side,offset+width/2);a.y+=yOffset;b.y+=yOffset;verts.push(a.x,a.y,a.z,b.x,b.y,b.z);uv.push(0,i/N*80,1,i/N*80);if(i<N){const k=i*2;idx.push(k,k+1,k+2,k+1,k+3,k+2)}}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();const m=new THREE.Mesh(g,material);m.receiveShadow=true;m.castShadow=false;scene.add(m);return m}
+let N=720;const points=[], widths=[];for(let i=0;i<N;i++){const t=i/N*Math.PI*2;const x=Math.sin(t)*90+Math.sin(3*t)*20;const z=Math.cos(t)*115+Math.sin(2*t)*18;const y=2+Math.sin(3*t+.5)*8+Math.sin(7*t)*2.5;points.push(new THREE.Vector3(x,y,z));widths.push(13)}
+const curve=new THREE.CatmullRomCurve3(points,true,'catmullrom',.28);
+let samples=curve.getPoints(N);
+// A shaped jump ramp: a rising approach, a short crest and a landing descent.
+// Height is authored into the centerline itself, so the road is real 3D geometry.
+const rampCenter=365;
+for(let i=0;i<samples.length;i++){
+  const d=Math.abs(i-rampCenter);
+  let lift=0;
+  if(d<22){const u=1-d/22;lift=7.5*u*u*(3-2*u);}
+  samples[i].y+=lift;
+}
+// Replace a section of the original route with a closed vertical loop and a smooth exit connector.
+const loopStart=180,loopEnd=240,base=samples.map(p=>p.clone());
+const start=base[loopStart].clone(),end=base[loopEnd].clone();
+const baseTangent=base[(loopStart+1)%base.length].clone().sub(base[(loopStart-1+base.length)%base.length]).normalize();
+const endTangent=base[(loopEnd+1)%base.length].clone().sub(base[loopEnd-1].clone()).normalize();
+const loopRadius=13,loopCount=144,loopPoints=[];
+const loopUp=new THREE.Vector3(0,1,0);
+for(let i=0;i<=loopCount;i++){
+  const a=i/loopCount*Math.PI*2;
+  loopPoints.push(start.clone().addScaledVector(baseTangent,loopRadius*Math.sin(a)).addScaledVector(loopUp,loopRadius*(1-Math.cos(a))));
+}
+const connectorCount=36,connector=[];
+const chord=start.distanceTo(end),c1=start.clone().addScaledVector(baseTangent,Math.max(10,chord*.38)),c2=end.clone().addScaledVector(endTangent,-Math.max(10,chord*.38));
+for(let i=1;i<=connectorCount;i++){
+  const t=i/connectorCount,u=1-t;
+  connector.push(start.clone().multiplyScalar(u*u*u).addScaledVector(c1,3*u*u*t).addScaledVector(c2,3*u*t*t).addScaledVector(end,t*t*t));
+}
+samples=[...base.slice(0,loopStart),...loopPoints.slice(1),...connector,...base.slice(loopEnd+1)];
+N=samples.length;
+const tangents=samples.map((p,i)=>samples[(i+1)%N].clone().sub(samples[(i-1+N)%N]).normalize());
+const frameUps=samples.map((p,i)=>{
+  const loopIndex=i-loopStart;
+  if(loopIndex>=0&&loopIndex<=loopCount){
+    const a=loopIndex/loopCount*Math.PI*2;
+    return loopUp.clone().multiplyScalar(-Math.cos(a)).addScaledVector(baseTangent,Math.sin(a)).normalize();
+  }
+  const prev=tangents[(i-1+N)%N],next=tangents[(i+1)%N];
+  const bend=prev.clone().cross(next).y;
+  const bank=THREE.MathUtils.clamp(-bend*1.9,-.38,.38);
+  const up=new THREE.Vector3(0,1,0);
+  const axis=tangents[i];
+  return up.applyAxisAngle(axis,bank).normalize();
+});
+const sideVectors=tangents.map((t,i)=>new THREE.Vector3().crossVectors(t,frameUps[i]).normalize());
+function roadMesh(offset,width,material,yOffset=0){const verts=[],uv=[],idx=[];for(let i=0;i<=N;i++){const j=i%N,p=samples[j],side=sideVectors[j],up=frameUps[j];const a=p.clone().addScaledVector(side,offset-width/2).addScaledVector(up,yOffset);const b=p.clone().addScaledVector(side,offset+width/2).addScaledVector(up,yOffset);verts.push(a.x,a.y,a.z,b.x,b.y,b.z);uv.push(0,i/N*80,1,i/N*80);if(i<N){const k=i*2;idx.push(k,k+1,k+2,k+1,k+3,k+2)}}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();const m=new THREE.Mesh(g,material);m.receiveShadow=true;m.castShadow=false;scene.add(m);return m}
 const trackSurfaceMesh=roadMesh(0,13,roadMat,.1);roadMesh(-6.8,.48,edgeMat,.17);roadMesh(6.8,.48,edgeMat,.17);
 const dashMat=mat(0xf8f6dd);for(let i=0;i<N;i+=8){const p=samples[i],s=sideVectors[i];const g=new THREE.BoxGeometry(.16,.045,1.6);const dash=new THREE.Mesh(g,dashMat);dash.position.set(p.x,p.y+.25,p.z);dash.rotation.y=Math.atan2(tangents[i].x,tangents[i].z);scene.add(dash)}
 // Decorative low-poly hills, trees and trackside markers
 for(let i=0;i<220;i++){const j=(i*37)%N,p=samples[j],side=sideVectors[j],sgn=i%2?1:-1,dist=18+(i*13)%45;const pos=p.clone().addScaledVector(side,sgn*dist);const h=5+(i*17)%15;const tree=new THREE.Group();const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.45,.7,h*.45,5),mat(0x76533b));trunk.position.y=h*.22;trunk.userData.physicsCollider=true;tree.add(trunk);const crown=new THREE.Mesh(new THREE.ConeGeometry(2.5+(i%3),h*.7,5),mat(i%3===0?0x2f744b:0x438b55));crown.position.y=h*.72;tree.add(crown);tree.position.set(pos.x,p.y-1,pos.z);tree.rotation.y=i*2.4;scene.add(tree)}
 // Track gantries and glowing checkpoint beacons
-function makeGate(idx,label){const p=samples[idx],tan=tangents[idx],side=sideVectors[idx],g=new THREE.Group();const postMat=mat(0x202b39,.4);for(const x of [-7.1,7.1]){const post=new THREE.Mesh(new THREE.BoxGeometry(.55,6,.55),postMat);post.position.set(x,3,0);post.userData.physicsCollider=true;g.add(post)}const beam=new THREE.Mesh(new THREE.BoxGeometry(14.7,.7,.65),yellowMat);beam.position.y=6;beam.userData.physicsCollider=true;g.add(beam);for(let x=-5;x<=5;x+=2.5){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.8,.22,.15),whiteMat);lamp.position.set(x,6,.38);g.add(lamp)}g.position.set(p.x,p.y,p.z);g.rotation.y=Math.atan2(tan.x,tan.z);scene.add(g)}
+function makeGate(idx,label){const p=samples[idx],tan=tangents[idx],side=sideVectors[idx],up=frameUps[idx],g=new THREE.Group();const postMat=mat(0x202b39,.4);for(const x of [-7.1,7.1]){const post=new THREE.Mesh(new THREE.BoxGeometry(.55,6,.55),postMat);post.position.set(x,3,0);post.userData.physicsCollider=true;g.add(post)}const beam=new THREE.Mesh(new THREE.BoxGeometry(14.7,.7,.65),yellowMat);beam.position.y=6;beam.userData.physicsCollider=true;g.add(beam);for(let x=-5;x<=5;x+=2.5){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.8,.22,.15),whiteMat);lamp.position.set(x,6,.38);g.add(lamp)}g.position.set(p.x,p.y,p.z);g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side,up,tan.clone().negate()));scene.add(g)}
 makeGate(0,'START');makeGate(240,'CHECK');makeGate(480,'CHECK');
 const car=new THREE.Group();const chassis=new THREE.Mesh(new THREE.BoxGeometry(2.05,.62,4.1),redMat);chassis.position.y=.72;chassis.castShadow=true;car.add(chassis);
 const nose=new THREE.Mesh(new THREE.BoxGeometry(1.72,.27,1.25),redMat);nose.position.set(0,.95,-1.35);car.add(nose);
