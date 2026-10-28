@@ -82,7 +82,6 @@ if(running&&!paused){
   const steeringAuthority=PHYS.steerRate*(1-speed01*(1-PHYS.highSpeedSteer));
   const desiredYawRate=steering*steeringAuthority*(0.22+speed/18)*(handbrake?1.28:1);
   // The yaw response has inertia instead of rotating the chassis instantly.
-  const yawInertia=handbrake?2.6:4.4;
   const yawRate=(desiredYawRate-headingError*PHYS.headingReturn*.08);
   headingError += yawRate*dt;
   headingError=THREE.MathUtils.clamp(headingError,-Math.PI,Math.PI);
@@ -91,7 +90,7 @@ if(running&&!paused){
   const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
   // Side force builds while turning, then tyre grip damps it; handbrake reduces rear grip.
   const grip=handbrake?PHYS.driftGrip:PHYS.lateralGrip;
-  lateralVelocity += steering*speed*(handbrake?.72:.24)*dt;
+  lateralVelocity += steering*speed*(handbrake ? .72 : .24)*dt;
   lateralVelocity *= Math.exp(-grip*dt);
   yaw += yawRate*dt + lateralVelocity*dt*.018;
   const travelForward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
@@ -116,7 +115,6 @@ if(running&&!paused){
   const next=samples[(nearestIndex+1)%N],prev=samples[(nearestIndex-1+N)%N];
   const grade=Math.atan2(next.y-prev.y,Math.max(.01,next.distanceTo(prev)));
   const tangentYaw=Math.atan2(-trackForward.x,-trackForward.z);
-  const actualHeading=Math.atan2(-Math.sin(yaw-tangentYaw),Math.cos(yaw-tangentYaw));
   car.position.y=center.y+.25;
   car.rotation.set(grade,yaw,THREE.MathUtils.clamp(-steering*speed01*.11-lateralVelocity*.008,-.22,.22));
 
