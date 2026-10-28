@@ -1,0 +1,34 @@
+name: PlayCar Physics Engine tests
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  physics-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax check engine
+        run: node --check physics/playcar-physics-engine.js
+      - name: Syntax check integrated game script
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path("index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
+          if len(scripts) != 1:
+              raise SystemExit(f"Expected one inline game script, found {len(scripts)}")
+          Path("/tmp/playcar-inline.js").write_text(scripts[0], encoding="utf-8")
+          PY
+          node --check /tmp/playcar-inline.js
+      - name: Run regression scenarios
+        run: node --test tests/playcar-physics.test.js
