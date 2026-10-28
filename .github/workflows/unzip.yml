@@ -1,1 +1,20 @@
+      - name: Extract game files
+        run: |
+          if [ ! -f "youxi.zip" ]; then
+            echo "找不到 youxi.zip，请确认它在仓库根目录"
+            exit 1
+          fi
 
+          rm -rf extracted
+          mkdir -p extracted
+          unzip -oq youxi.zip -d extracted
+
+          SOURCE=$(find extracted -type f -name index.html -print -quit)
+          if [ -z "$SOURCE" ]; then
+            echo "压缩包中没有找到 index.html"
+            exit 1
+          fi
+
+          ROOT=$(dirname "$SOURCE")
+          cp -a "$ROOT"/. .
+          rm -rf extracted
