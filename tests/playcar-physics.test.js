@@ -68,6 +68,34 @@ test('a falling car contacts the road and recovers from a landing',()=>{
   assert.ok(e.state.position.y>-.2,'contact correction should prevent continued tunnelling through the road');
   finiteState(e);
 });
+test('uphill ramp redirects forward motion into vertical lift and takeoff',()=>{
+  const triangles=[];
+  const fa={x:-10,y:0,z:0},fb={x:-10,y:0,z:20},fc={x:10,y:0,z:20},fd={x:10,y:0,z:0};
+  triangles.push([fa,fb,fc],[fa,fc,fd]);
+  const ra={x:-10,y:0,z:0},rb={x:-10,y:3,z:-6},rc={x:10,y:3,z:-6},rd={x:10,y:0,z:0};
+  triangles.push([ra,rd,rc],[ra,rc,rb]);
+  const surface=TriangleMesh.fromTriangles(triangles,4);
+  const e=new Engine({surfaceMesh:surface,position:{x:0,y:-.03,z:4}});
+  e.state.velocity={x:0,y:0,z:-20};
+  let lifted=false;
+  for(let i=0;i<90;i++){
+    e.advance(1/120,{});
+    if(!e.state.grounded&&e.state.velocity.y>1)lifted=true;
+  }
+  assert.ok(lifted,'vehicle should retain upward momentum after leaving the rising ramp');
+  finiteState(e);
+});
+test('crossing a checkpoint plane updates the recoverable checkpoint',()=>{
+  const e=makeEngine();
+  e.addCheckpoint({id:'start',position:{x:0,y:0,z:0},forward:{x:0,y:0,z:-1},radius:6});
+  e.addCheckpoint({id:'gate-1',position:{x:0,y:0,z:-3},forward:{x:0,y:0,z:-1},radius:6});
+  e.state.position={x:0,y:-.03,z:0};e.state.velocity={x:0,y:0,z:-20};
+  runFor(e,.3,{},60);
+  assert.equal(e.state.checkpointId,'gate-1');
+  assert.equal(e.resetToCheckpoint(),true);
+  assert.equal(e.state.checkpointId,'gate-1');
+  assert.ok(Math.abs(e.state.position.z+3)<1e-9);
+});
 test('3D triangle collision detects and resolves a vertical wall',()=>{
   const ground=rectangleSurface();
   const a={x:-10,y:0,z:-3},b={x:-10,y:5,z:-3},c={x:10,y:5,z:-3},d={x:10,y:0,z:-3};
