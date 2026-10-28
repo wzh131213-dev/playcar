@@ -65,6 +65,14 @@ test('leaving the end of a finite track produces airborne gravity and falling ve
   assert.ok(e.state.velocity.y < -2,'gravity should accelerate the car downward');
   finiteState(e);
 });
+test('road triangles act as a solid body collider as well as wheel support',()=>{
+  const road=rectangleSurface();
+  const e=new Engine({surfaceMesh:road,colliderMeshes:[road],position:{x:0,y:-.03,z:0}});
+  runFor(e,.15,{},60);
+  assert.ok(e.state.totalCollisionEvents>0,'the car body should collide with the road mesh');
+  assert.ok(e.state.position.y>-.12,'road collision should prevent the body from sinking through the road');
+  finiteState(e);
+});
 test('a falling car contacts the road and recovers from a landing',()=>{
   const e=makeEngine();e.state.position.y=2;e.state.velocity={x:0,y:-12,z:0};
   runFor(e,.75,{},60);
