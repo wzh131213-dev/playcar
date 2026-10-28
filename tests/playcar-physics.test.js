@@ -36,10 +36,14 @@ test('braking reduces forward speed',()=>{
   const e=makeEngine();e.state.velocity={x:0,y:0,z:-22};runFor(e,.45,{brake:1},60);
   assert.ok(V.len(e.state.velocity)<8,'braking should substantially reduce speed');finiteState(e);
 });
-test('steering changes vehicle orientation rather than translating along a fixed line',()=>{
-  const e=makeEngine();e.state.velocity={x:0,y:0,z:-20};runFor(e,.8,{right:true},60);
-  const forward=Q.rotate(e.state.orientation,{x:0,y:0,z:-1});
-  assert.ok(Math.abs(forward.x)>.12,'vehicle heading should change');finiteState(e);
+test('left and right steering turn in the matching direction',()=>{
+  const right=makeEngine();right.state.velocity={x:0,y:0,z:-20};runFor(right,.8,{right:true},60);
+  const rightForward=Q.rotate(right.state.orientation,{x:0,y:0,z:-1});
+  assert.ok(rightForward.x>.12,'right input should turn the nose toward +X/right');
+  const left=makeEngine();left.state.velocity={x:0,y:0,z:-20};runFor(left,.8,{left:true},60);
+  const leftForward=Q.rotate(left.state.orientation,{x:0,y:0,z:-1});
+  assert.ok(leftForward.x<-.12,'left input should turn the nose toward -X/left');
+  finiteState(right);finiteState(left);
 });
 test('tire grip damps lateral velocity; handbrake has a weaker grip response',()=>{
   const normal=makeEngine();normal.state.velocity={x:8,y:0,z:-12};runFor(normal,.5,{},60);
@@ -68,6 +72,14 @@ test('a falling car contacts the road and recovers from a landing',()=>{
   assert.ok(e.state.position.y>-.2,'contact correction should prevent continued tunnelling through the road');
   finiteState(e);
 });
+test('a car that penetrates below the road is pushed back onto the solid surface',()=>{
+  const e=makeEngine();e.state.position.y=-.62;e.state.velocity={x:0,y:-2,z:0};
+  runFor(e,.25,{},60);
+  assert.ok(e.state.position.y>-.25,'signed-distance contact should recover the car from below the road');
+  assert.equal(e.state.grounded,true,'recovered wheels should regain road contact');
+  finiteState(e);
+});
+
 test('uphill ramp redirects forward motion into vertical lift and takeoff',()=>{
   const triangles=[];
   const fa={x:-10,y:0,z:0},fb={x:-10,y:0,z:20},fc={x:10,y:0,z:20},fd={x:10,y:0,z:0};
