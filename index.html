@@ -9,7 +9,7 @@
 <div id="brand">POLY<span>RUSH</span><div id="hint">LOW-POLY CIRCUIT · TIME ATTACK</div></div>
 <div id="progressWrap"><div id="progressText">LAP 01 / 03</div><div id="progress"><div id="bar"></div></div></div>
 <div id="hud"><div class="panel"><div class="lab">SPEED</div><div class="val" id="speed">000</div><div class="unit">KM/H</div></div><div class="panel"><div class="lab">TIME</div><div class="val" id="time">00:00.00</div><div class="unit">BEST <span id="best">--:--.--</span></div></div></div>
-<div id="bottom"><button id="restart">↻ 重置</button><button id="camera">相机：追尾</button><button id="pause">Ⅱ 暂停</button><button id="debugToggle">物理调试</button></div>
+<div id="bottom"><button id="restart">↻ 重置</button><button id="camera">相机：追尾</button><button id="pause">Ⅱ 暂停</button><button id="debugToggle">物理调试</button><button id="exportTelemetry">导出驾驶数据</button></div>
 <div id="physicsDebug" class="hidden">PlayCar Physics Engine 1.0
 速度：<span id="debugSpeed">0.0</span> u/s
 垂直速度：<span id="debugVertical">0.0</span>
@@ -42,9 +42,10 @@ let samples=curve.getPoints(N);
 // Height is authored into the centerline itself, so the road is real 3D geometry.
 const rampCenter=365;
 for(let i=0;i<samples.length;i++){
-  const d=Math.abs(i-rampCenter);
   let lift=0;
-  if(d<22){const u=1-d/22;lift=7.5*u*u*(3-2*u);}
+  if(i>=rampCenter-22&&i<rampCenter-8){const u=(i-(rampCenter-22))/14;lift=7.5*u*u*(3-2*u);}
+  else if(i>=rampCenter-8&&i<=rampCenter-3){lift=7.5;}
+  else if(i>rampCenter-3&&i<rampCenter+20){const u=1-(i-(rampCenter-3))/23;lift=7.5*u*u*(3-2*u);}
   samples[i].y+=lift;
 }
 // Replace a section of the original route with a closed vertical loop and a smooth exit connector.
@@ -71,7 +72,7 @@ const frameUps=samples.map((p,i)=>{
   const loopIndex=i-loopStart;
   if(loopIndex>=0&&loopIndex<=loopCount){
     const a=loopIndex/loopCount*Math.PI*2;
-    return loopUp.clone().multiplyScalar(-Math.cos(a)).addScaledVector(baseTangent,Math.sin(a)).normalize();
+    return loopUp.clone().multiplyScalar(Math.cos(a)).addScaledVector(baseTangent,-Math.sin(a)).normalize();
   }
   const prev=tangents[(i-1+N)%N],next=tangents[(i+1)%N];
   const bend=prev.clone().cross(next).y;
@@ -96,11 +97,11 @@ const roof=new THREE.Mesh(new THREE.BoxGeometry(1.22,.12,.9),darkMat);roof.posit
 for(const x of [-.78,.78]){for(const z of [-1.42,1.35]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.42,.42,.28,10),tireMat);wheel.rotation.z=Math.PI/2;wheel.position.set(x,.48,z);wheel.castShadow=true;car.add(wheel)}}
 for(const x of [-.65,.65]){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.36,.17,.12),yellowMat);lamp.position.set(x,.78,-2.08);car.add(lamp);const tail=new THREE.Mesh(new THREE.BoxGeometry(.4,.13,.1),mat(0xff3327));tail.position.set(x,.76,2.08);car.add(tail)}
 scene.add(car);
-const keys={left:false,right:false,gas:false,brake:false,hand:false};let running=false,paused=false,startedAt=0,elapsed=0,last=performance.now(),speed=0,progress=0,lateral=0,lap=1,camMode=0,best=Number(localStorage.getItem('polyrush-best')||0),yaw=0,nearestIndex=0,previousProgress=0;
+const keys={left:false,right:false,gas:false,brake:false,hand:false};let running=false,paused=false,startedAt=0,elapsed=0,last=performance.now(),speed=0,progress=0,lateral=0,lap=1,camMode=0,best=Number(localStorage.getItem('polyrush-best')||0),yaw=0,nearestIndex=0,previousProgress=0,telemetryRows=[],telemetryAccumulator=0;
 function fmt(s){if(!isFinite(s)||s<=0)return '00:00.00';const m=Math.floor(s/60),sec=(s%60).toFixed(2).padStart(5,'0');return String(m).padStart(2,'0')+':'+sec}
 $('best').textContent=best?fmt(best):'--:--.--';
 function findRoadPosition(x,z,y=0){let bestIndex=0,bestDist=Infinity;for(let i=0;i<N;i++){const dx=x-samples[i].x,dy=y-samples[i].y,dz=z-samples[i].z,d=dx*dx+dy*dy+dz*dz;if(d<bestDist){bestDist=d;bestIndex=i}}return bestIndex}
-function reset(){Object.keys(keys).forEach(k=>keys[k]=false);document.querySelectorAll('.touchbtn').forEach(el=>el.classList.remove('active'));speed=0;progress=0;lateral=0;trackDistance=0;lap=1;elapsed=0;nearestIndex=0;previousProgress=0;const p=samples[0],tan=tangents[0];yaw=Math.atan2(-tan.x,-tan.z);physics.reset({x:p.x,y:p.y+.12,z:p.z},yaw);car.position.set(p.x,p.y+.12,p.z);car.quaternion.set(physics.state.orientation.x,physics.state.orientation.y,physics.state.orientation.z,physics.state.orientation.w);startedAt=performance.now();$('bar').style.width='0%';$('progressText').textContent='LAP 01 / 03';$('speed').textContent='000';$('time').textContent='00:00.00'}
+function reset(){telemetryRows=[];telemetryAccumulator=0;Object.keys(keys).forEach(k=>keys[k]=false);document.querySelectorAll('.touchbtn').forEach(el=>el.classList.remove('active'));speed=0;progress=0;lateral=0;trackDistance=0;lap=1;elapsed=0;nearestIndex=0;previousProgress=0;const p=samples[0],tan=tangents[0];yaw=Math.atan2(-tan.x,-tan.z);physics.reset({x:p.x,y:p.y+.12,z:p.z},yaw);car.position.set(p.x,p.y+.12,p.z);car.quaternion.set(physics.state.orientation.x,physics.state.orientation.y,physics.state.orientation.z,physics.state.orientation.w);startedAt=performance.now();$('bar').style.width='0%';$('progressText').textContent='LAP 01 / 03';$('speed').textContent='000';$('time').textContent='00:00.00'}
 // PlayCar Physics Engine 1.0: physics is solved in world-space against the road triangle mesh.
 let trackDistance = 0;
 const EngineAPI=window.PlayCarPhysicsEngine;
@@ -129,6 +130,12 @@ function update(dt){
   if(running&&!paused){
     physics.advance(dt,{left:keys.left,right:keys.right,throttle:keys.gas?1:0,brake:keys.brake?1:0,handbrake:keys.hand?1:0});
     elapsed=(performance.now()-startedAt)/1000;
+    telemetryAccumulator+=dt;
+    if(telemetryAccumulator>=.1&&telemetryRows.length<12000){
+      telemetryAccumulator%=.1;
+      const ts=physics.debugSnapshot(),p=physics.state.position,v=physics.state.velocity;
+      telemetryRows.push([elapsed.toFixed(3),ts.tick,p.x.toFixed(3),p.y.toFixed(3),p.z.toFixed(3),ts.speed.toFixed(3),v.y.toFixed(3),keys.left?1:0,keys.right?1:0,keys.gas?1:0,keys.brake?1:0,keys.hand?1:0,ts.grounded?1:0,ts.grip,ts.collision,ts.collisionEvents].join(','));
+    }
     const world=physics.state.position;
     nearestIndex=findRoadPosition(world.x,world.z,world.y);
     const nowProgress=nearestIndex/N;
@@ -171,6 +178,15 @@ function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-last
 function start(){reset();running=true;paused=false;$('pause').textContent='Ⅱ 暂停';$('overlay').classList.add('hidden')}
 $('start').addEventListener('click',start);$('restart').addEventListener('click',()=>{reset();running=true;paused=false});$('pause').addEventListener('click',()=>{if(!running)return;paused=!paused;if(!paused)startedAt=performance.now()-elapsed*1000;$('pause').textContent=paused?'▶ 继续':'Ⅱ 暂停'});$('camera').addEventListener('click',()=>{camMode=(camMode+1)%2;$('camera').textContent=camMode?'相机：俯视':'相机：追尾'});
 $('debugToggle').addEventListener('click',()=>{$('physicsDebug').classList.toggle('hidden')});
+$('exportTelemetry').addEventListener('click',()=>{
+  const header='time_s,tick,x,y,z,speed,vertical_speed,left,right,throttle,brake,handbrake,grounded,grip,collision,total_collision_events';
+  const csv=[header,...telemetryRows].join('\\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');
+  a.href=url;a.download='playcar-driving-telemetry.csv';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  $('exportTelemetry').textContent='已导出 '+telemetryRows.length+' 条';
+});
 addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(['arrowup','arrowdown','arrowleft','arrowright',' ','w','a','s','d'].includes(k))e.preventDefault();if(k==='arrowup'||k==='w')keys.gas=true;if(k==='arrowdown'||k==='s')keys.brake=true;if(k==='arrowleft'||k==='a')keys.left=true;if(k==='arrowright'||k==='d')keys.right=true;if(k===' ')keys.hand=true;if(k==='r'){if(!physics.resetToCheckpoint())$('restart').click()}if(k==='c')$('camera').click();if(k==='escape')$('pause').click()},{passive:false});addEventListener('keyup',e=>{const k=e.key.toLowerCase();if(k==='arrowup'||k==='w')keys.gas=false;if(k==='arrowdown'||k==='s')keys.brake=false;if(k==='arrowleft'||k==='a')keys.left=false;if(k==='arrowright'||k==='d')keys.right=false;if(k===' ')keys.hand=false});
 document.querySelectorAll('.touchbtn').forEach(el=>{const key=el.dataset.key;const on=e=>{e.preventDefault();try{if(el.setPointerCapture)el.setPointerCapture(e.pointerId)}catch(_){}keys[key]=true;el.classList.add('active')},off=e=>{if(e&&e.preventDefault)e.preventDefault();keys[key]=false;el.classList.remove('active')};el.addEventListener('pointerdown',on);el.addEventListener('pointerup',off);el.addEventListener('pointercancel',off);el.addEventListener('lostpointercapture',off)});
 addEventListener('blur',()=>{Object.keys(keys).forEach(k=>keys[k]=false);document.querySelectorAll('.touchbtn').forEach(el=>el.classList.remove('active'))});addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.7))});
