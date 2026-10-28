@@ -141,9 +141,11 @@
         const q=closestPointOnTriangle(p,tri.a,tri.b,tri.c),d2=V.len2(V.sub(p,q));
         if(d2<=best2){
           best2=d2;
-          // Preserve the authored triangle normal. Flipping it toward the query point would
-          // make a car falling through a road receive a downward impulse instead of recovery.
-          const n=tri.rawNormal;
+          // Orient the contact normal consistently with the previous support normal.
+          // Road triangles may be wound either way; trusting rawNormal can make the
+          // suspension push the car through the road and invert steering on banked sections.
+          let n=tri.rawNormal;
+          if(preferredNormal&&V.len2(preferredNormal)>EPS&&V.dot(n,preferredNormal)<0)n=V.mul(n,-1);
           best={point:q,normal:n,distance:Math.sqrt(d2),signedDistance:V.dot(V.sub(p,q),n),triangleIndex:tri.id,face:tri};
         }
       }
@@ -407,7 +409,7 @@
     }
   }
 
-  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.0.1'};
+  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.0.2'};
   root.PlayCarPhysicsEngine=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
