@@ -1,11 +1,10 @@
-
-name: youxi ZIP
+name: Extract PolyTrack ZIP
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - "youxi.zip"
+      - "*.zip"
 
 permissions:
   contents: write
@@ -17,21 +16,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract game files
+      - name: Find and extract uploaded ZIP
+        shell: bash
         run: |
-          set -eu
+          set -euo pipefail
+          ARCHIVE=""
+          for f in ./*.zip; do
+            [ -f "$f" ] || continue
+            if unzip -tq "$f" >/dev/null 2>&1; then
+              ARCHIVE="$f"
+              break
+            fi
+          done
 
-          if [ ! -f "youxi.zip" ]; then
-            echo "ERROR: 根目录中找不到 youxi.zip"
+          if [ -z "$ARCHIVE" ]; then
+            echo "ERROR: 根目录没有找到有效的 ZIP 压缩包。请上传完整 ZIP 后重试。"
             exit 1
           fi
 
+          echo "Using archive: $ARCHIVE"
           rm -rf extracted
-          mkdir -p extracted
-          unzip -oq youxi.zip -d extracted
+          mkdir extracted
+          unzip -oq "$ARCHIVE" -d extracted
 
           SOURCE=$(find extracted -type f -name index.html -print -quit)
-
           if [ -z "$SOURCE" ]; then
             echo "ERROR: 压缩包中找不到 index.html"
             exit 1
@@ -40,11 +48,13 @@ jobs:
           ROOT=$(dirname "$SOURCE")
           cp -a "$ROOT"/. .
           rm -rf extracted
+          # 删除旧的损坏压缩包和本次上传的压缩包，保留解压后的游戏文件与工作流。
+          find . -maxdepth 1 -type f -name '*.zip' -delete
 
-      - name: Commit extracted files
+      - name: Commit extracted game files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Extract PolyTrack game files" || exit 0
+          git commit -m "Extract uploaded PolyTrack game files" || exit 0
           git push
