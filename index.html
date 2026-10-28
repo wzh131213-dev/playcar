@@ -45,7 +45,7 @@ const keys={left:false,right:false,gas:false,brake:false,hand:false};let running
 function fmt(s){if(!isFinite(s)||s<=0)return '00:00.00';const m=Math.floor(s/60),sec=(s%60).toFixed(2).padStart(5,'0');return String(m).padStart(2,'0')+':'+sec}
 $('best').textContent=best?fmt(best):'--:--.--';
 function findRoadPosition(x,z){let bestIndex=0,bestDist=Infinity;for(let i=0;i<N;i++){const dx=x-samples[i].x,dz=z-samples[i].z,d=dx*dx+dz*dz;if(d<bestDist){bestDist=d;bestIndex=i}}return bestIndex}
-function reset(){speed=0;progress=0;lateral=0;lateralVelocity=0;headingError=0;trackDistance=0;lap=1;elapsed=0;nearestIndex=0;previousProgress=0;const p=samples[0],tan=tangents[0];yaw=Math.atan2(tan.x,tan.z);car.position.set(p.x,p.y+.25,p.z);car.rotation.set(0,yaw,0);startedAt=performance.now();$('bar').style.width='0%';$('progressText').textContent='LAP 01 / 03';$('speed').textContent='000';$('time').textContent='00:00.00'}
+function reset(){speed=0;progress=0;lateral=0;lateralVelocity=0;headingError=0;trackDistance=0;lap=1;elapsed=0;nearestIndex=0;previousProgress=0;const p=samples[0],tan=tangents[0];yaw=Math.atan2(-tan.x,-tan.z);car.position.set(p.x,p.y+.25,p.z);car.rotation.set(0,yaw,0);startedAt=performance.now();$('bar').style.width='0%';$('progressText').textContent='LAP 01 / 03';$('speed').textContent='000';$('time').textContent='00:00.00'}
 // Physics rewrite: track-space dynamics, separate forward speed, lateral slip, and heading error.
 const PHYS = {
   maxSpeed: 78,             // m/s-like game units; HUD converts to km/h
@@ -90,7 +90,7 @@ if(running&&!paused){
   // Steering response grows with speed but softens at very high speed, avoiding instant spin-outs.
   const yawRate=(0.30+speed01*0.78)*(1-speed01*0.20);
   yaw+=steering*yawRate*dt*(handbrake?1.32:1);
-  const forward=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
+  const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
   const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
 
   // Tire lateral grip: turning builds side slip; normal grip recenters it quickly.
@@ -120,7 +120,7 @@ if(running&&!paused){
   // Keep the chassis attached to the sampled solid road surface and follow its slope.
   const next=samples[(nearestIndex+1)%N],prev=samples[(nearestIndex-1+N)%N];
   const grade=Math.atan2(next.y-prev.y,Math.max(0.01,next.distanceTo(prev)));
-  const tangentYaw=Math.atan2(trackForward.x,trackForward.z);
+  const tangentYaw=Math.atan2(-trackForward.x,-trackForward.z);
   const headingError=Math.atan2(Math.sin(yaw-tangentYaw),Math.cos(yaw-tangentYaw));
   car.position.y=center.y+0.25;
   car.rotation.set(grade, yaw, THREE.MathUtils.clamp(-steering*speed01*0.11-lateralVelocity*0.008,-0.22,0.22));
@@ -144,7 +144,7 @@ if(running&&!paused){
   $('bar').style.width=(progress*100)+'%';
   $('progressText').textContent='LAP '+String(Math.min(lap,3)).padStart(2,'0')+' / 03';
 }
-const p=car.position.clone(),forward=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
+const p=car.position.clone(),forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
 let desired,look;
 if(camMode===0){desired=p.clone().addScaledVector(forward,-11-speed*.035);desired.y+=5.2+speed*.015;look=p.clone().addScaledVector(forward,7);look.y+=1.2}
 else{desired=p.clone().add(new THREE.Vector3(0,22,0));look=p.clone()}
