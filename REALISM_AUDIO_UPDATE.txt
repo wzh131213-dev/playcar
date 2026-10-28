@@ -1,0 +1,11 @@
+PolyTrack Realism + Audio update
+
+Changes:
+- Updated car GLB PBR materials: clearer glossy body paint, more metallic rims/trim, matte rubber tires, stronger brake-light emission. Mesh/node layout and physics data are preserved.
+- Reprocessed engine, tires, skidding, collision, and suspension audio in both OGG and MP3 variants with targeted EQ and dynamics.
+- Kept the existing realistic rendering mod and removed-leaderboard prototype as supplied.
+
+Notes:
+- This is a material/rendering realism upgrade, not a full replacement with a newly sculpted real-world car model.
+- Audio processing is based on the original game sound assets; no external copyrighted recordings were added.
+- Test on the target browser/device for subjective sound balance and performance.
