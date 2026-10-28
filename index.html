@@ -65,7 +65,7 @@ for(let i=1;i<=connectorCount;i++){
   const t=i/connectorCount,u=1-t;
   connector.push(start.clone().multiplyScalar(u*u*u).addScaledVector(c1,3*u*u*t).addScaledVector(c2,3*u*t*t).addScaledVector(end,t*t*t));
 }
-samples=[...base.slice(0,loopStart),...loopPoints.slice(1),...connector,...base.slice(loopEnd+1)];
+samples=[...base.slice(0,loopStart+1),...loopPoints.slice(1),...connector,...base.slice(loopEnd+1)];
 N=samples.length;
 const tangents=samples.map((p,i)=>samples[(i+1)%N].clone().sub(samples[(i-1+N)%N]).normalize());
 const frameUps=samples.map((p,i)=>{
@@ -89,7 +89,7 @@ const dashMat=mat(0xf8f6dd);for(let i=0;i<N;i+=8){const p=samples[i],s=sideVecto
 for(let i=0;i<220;i++){const j=(i*37)%N,p=samples[j],side=sideVectors[j],sgn=i%2?1:-1,dist=18+(i*13)%45;const pos=p.clone().addScaledVector(side,sgn*dist);const h=5+(i*17)%15;const tree=new THREE.Group();const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.45,.7,h*.45,5),mat(0x76533b));trunk.position.y=h*.22;trunk.userData.physicsCollider=true;tree.add(trunk);const crown=new THREE.Mesh(new THREE.ConeGeometry(2.5+(i%3),h*.7,5),mat(i%3===0?0x2f744b:0x438b55));crown.position.y=h*.72;tree.add(crown);tree.position.set(pos.x,p.y-1,pos.z);tree.rotation.y=i*2.4;scene.add(tree)}
 // Track gantries and glowing checkpoint beacons
 function makeGate(idx,label){const p=samples[idx],tan=tangents[idx],side=sideVectors[idx],up=frameUps[idx],g=new THREE.Group();const postMat=mat(0x202b39,.4);for(const x of [-7.1,7.1]){const post=new THREE.Mesh(new THREE.BoxGeometry(.55,6,.55),postMat);post.position.set(x,3,0);post.userData.physicsCollider=true;g.add(post)}const beam=new THREE.Mesh(new THREE.BoxGeometry(14.7,.7,.65),yellowMat);beam.position.y=6;beam.userData.physicsCollider=true;g.add(beam);for(let x=-5;x<=5;x+=2.5){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.8,.22,.15),whiteMat);lamp.position.set(x,6,.38);g.add(lamp)}g.position.set(p.x,p.y,p.z);g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side,up,tan.clone().negate()));scene.add(g)}
-makeGate(0,'START');makeGate(240,'CHECK');makeGate(480,'CHECK');
+makeGate(0,'START');makeGate(Math.floor(N*.5),'CHECK');makeGate(Math.floor(N*.75),'CHECK');
 const car=new THREE.Group();const chassis=new THREE.Mesh(new THREE.BoxGeometry(2.05,.62,4.1),redMat);chassis.position.y=.72;chassis.castShadow=true;car.add(chassis);
 const nose=new THREE.Mesh(new THREE.BoxGeometry(1.72,.27,1.25),redMat);nose.position.set(0,.95,-1.35);car.add(nose);
 const cabin=new THREE.Mesh(new THREE.BoxGeometry(1.4,.67,1.65),glassMat);cabin.position.set(0,1.23,.05);cabin.castShadow=true;car.add(cabin);
@@ -121,7 +121,7 @@ const physics=new EngineAPI.PlayCarPhysicsEngine({
     return {index:i,tangent:{x:t.x,y:t.y,z:t.z}};
   }
 });
-[0,240,480].forEach((idx,n)=>{
+[0,Math.floor(N*.5),Math.floor(N*.75)].forEach((idx,n)=>{
   const p=samples[idx],t=tangents[idx];
   physics.addCheckpoint({id:['start','checkpoint-1','checkpoint-2'][n],
     position:{x:p.x,y:p.y+.12,z:p.z},forward:{x:t.x,y:t.y,z:t.z},radius:13});
