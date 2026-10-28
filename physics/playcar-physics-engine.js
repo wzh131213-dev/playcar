@@ -290,10 +290,12 @@
       this.previousState=cloneState(s);
       s.collisionState='none';s.collisionCount=0;
       const contactsBefore=this._wheelContacts();
-      const wasGrounded=contactsBefore.length>=2;
+      const contactThreshold=c.suspensionRestLength+.12;
+      const supportedBefore=contactsBefore.filter(h=>h.distance<=contactThreshold);
+      const wasGrounded=supportedBefore.length>=2;
       let normal=V.make(0,1,0);
       if(wasGrounded){
-        const sum=contactsBefore.reduce((v,h)=>V.add(v,h.normal),V.make(0,0,0));normal=V.norm(sum);
+        const sum=supportedBefore.reduce((v,h)=>V.add(v,h.normal),V.make(0,0,0));normal=V.norm(sum);
         if(V.len2(normal)>EPS)s.contactNormal=normal;
       }
       const steer=V.clamp((input.right?1:0)-(input.left?1:0),-1,1);
@@ -334,7 +336,7 @@
       if(velocityMagnitude>c.maxSpeed*1.35)s.velocity=V.mul(s.velocity,(c.maxSpeed*1.35)/velocityMagnitude);
       s.position=V.add(s.position,V.mul(s.velocity,dt));
       this._applyStaticCollisions();
-      const contacts=this._wheelContacts();
+      const contacts=this._wheelContacts().filter(h=>h.distance<=contactThreshold);
       if(contacts.length>=2){
         let nsum=V.make(0,0,0),correction=V.make(0,0,0),correctionCount=0;
         let strongestImpact=0;
