@@ -324,7 +324,7 @@
         s.velocity=V.add(s.velocity,V.mul(right,sideAccel*dt));
         const speedForSteer=Math.max(1,Math.abs(V.dot(s.velocity,fwd)));
         const steerAngle=c.maxSteerAngle*(1-speedRatio*(1-c.highSpeedSteerScale))*steer;
-        let yawRate=V.dot(s.velocity,fwd)/c.wheelbase*Math.tan(steerAngle);
+        let yawRate=-V.dot(s.velocity,fwd)/c.wheelbase*Math.tan(steerAngle); // Forward is -Z: invert yaw so left input turns left and right input turns right.
         if(handbrake>0)yawRate*=c.handbrakeYawMultiplier;
         const maxYaw=Math.max(.08,(handbrake>0?c.handbrakeGrip:c.tireGrip)*c.gravity/speedForSteer);
         yawRate=V.clamp(yawRate,-maxYaw,maxYaw);
@@ -407,7 +407,7 @@
     }
   }
 
-  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.0.0'};
+  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.0.1'};
   root.PlayCarPhysicsEngine=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
