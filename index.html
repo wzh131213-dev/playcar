@@ -41,7 +41,7 @@ const roof=new THREE.Mesh(new THREE.BoxGeometry(1.22,.12,.9),darkMat);roof.posit
 for(const x of [-.78,.78]){for(const z of [-1.42,1.35]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.42,.42,.28,10),tireMat);wheel.rotation.z=Math.PI/2;wheel.position.set(x,.48,z);wheel.castShadow=true;car.add(wheel)}}
 for(const x of [-.65,.65]){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.36,.17,.12),yellowMat);lamp.position.set(x,.78,-2.08);car.add(lamp);const tail=new THREE.Mesh(new THREE.BoxGeometry(.4,.13,.1),mat(0xff3327));tail.position.set(x,.76,2.08);car.add(tail)}
 scene.add(car);
-const keys={left:false,right:false,gas:false,brake:false,hand:false};let running=false,paused=false,startedAt=0,elapsed=0,last=performance.now(),speed=0,progress=0,lateral=0,lateralVelocity=0,lap=1,camMode=0,best=Number(localStorage.getItem('polyrush-best')||0),yaw=0,nearestIndex=0,previousProgress=0;
+const keys={left:false,right:false,gas:false,brake:false,hand:false};let running=false,paused=false,startedAt=0,elapsed=0,last=performance.now(),speed=0,progress=0,lateral=0,lap=1,camMode=0,best=Number(localStorage.getItem('polyrush-best')||0),yaw=0,nearestIndex=0,previousProgress=0;
 function fmt(s){if(!isFinite(s)||s<=0)return '00:00.00';const m=Math.floor(s/60),sec=(s%60).toFixed(2).padStart(5,'0');return String(m).padStart(2,'0')+':'+sec}
 $('best').textContent=best?fmt(best):'--:--.--';
 function findRoadPosition(x,z){let bestIndex=0,bestDist=Infinity;for(let i=0;i<N;i++){const dx=x-samples[i].x,dz=z-samples[i].z,d=dx*dx+dz*dz;if(d<bestDist){bestDist=d;bestIndex=i}}return bestIndex}
@@ -66,64 +66,59 @@ const PHYS = {
 let lateralVelocity = 0;
 let headingError = 0;
 let trackDistance = 0;
-function placeCar(){
-  const p=samples[nearestIndex], side=sideVectors[nearestIndex];
-  lateral=THREE.MathUtils.clamp(lateral,-PHYS.roadHalfWidth,PHYS.roadHalfWidth);
-  car.position.set(p.x+side.x*lateral,p.y+.22,p.z+side.z*lateral);
-  const roadYaw=Math.atan2(tangents[nearestIndex].x,tangents[nearestIndex].z);
-  yaw=roadYaw+headingError;
-  car.rotation.set(0,yaw,THREE.MathUtils.clamp(-lateralVelocity*.function update(dt){
+function update(dt){
 if(running&&!paused){
   elapsed=(performance.now()-startedAt)/1000;
-  // Arcade vehicle dynamics: throttle/brake change longitudinal speed; steering changes heading;
-  // lateral velocity is damped by tire grip and becomes looser under handbrake.
-  const throttle=keys.gas?1:0, braking=(keys.brake?1:0), handbrake=keys.hand?1:0;
-  const maxSpeed=78, acceleration=throttle?31:0, serviceBrake=braking?48:0, drag=throttle?0.10:0.42;
-  speed+=acceleration*dt;
-  speed-=serviceBrake*dt;
-  speed-=speed*drag*dt;
-  if(handbrake) speed-=speed*0.34*dt;
-  speed=THREE.MathUtils.clamp(speed,0,maxSpeed);
+  // Track-space vehicle model: longitudinal acceleration, tire-limited yaw, lateral slip and drift grip.
+  const throttle=keys.gas?1:0, braking=keys.brake?1:0, handbrake=keys.hand?1:0;
+  const speed01=THREE.MathUtils.clamp(speed/PHYS.maxSpeed,0,1);
+  const drive=throttle*PHYS.engineForce;
+  const brake=braking?PHYS.brakeForce:0;
+  const drag=(throttle?PHYS.rollingDrag:PHYS.coastDrag)+PHYS.aeroDrag*speed*speed;
+  speed += (drive-brake-drag*speed-(handbrake?speed*.42:0))*dt;
+  speed=THREE.MathUtils.clamp(speed,0,PHYS.maxSpeed);
 
   const steering=(keys.right?1:0)-(keys.left?1:0);
-  const speed01=THREE.MathUtils.clamp(speed/32,0,1);
-  // Steering response grows with speed but softens at very high speed, avoiding instant spin-outs.
-  const yawRate=(0.30+speed01*0.78)*(1-speed01*0.20);
-  yaw+=steering*yawRate*dt*(handbrake?1.32:1);
+  const steeringAuthority=PHYS.steerRate*(1-speed01*(1-PHYS.highSpeedSteer));
+  const desiredYawRate=steering*steeringAuthority*(0.22+speed/18)*(handbrake?1.28:1);
+  // The yaw response has inertia instead of rotating the chassis instantly.
+  const yawInertia=handbrake?2.6:4.4;
+  const yawRate=(desiredYawRate-headingError*PHYS.headingReturn*.08);
+  headingError += yawRate*dt;
+  headingError=THREE.MathUtils.clamp(headingError,-Math.PI,Math.PI);
+
   const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
   const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
-
-  // Tire lateral grip: turning builds side slip; normal grip recenters it quickly.
-  // Handbrake reduces grip to create a controllable arcade drift.
-  const grip=handbrake?1.05:5.8;
-  lateralVelocity+=steering*speed*(handbrake?0.58:0.20)*dt;
-  lateralVelocity*=Math.exp(-grip*dt);
-  const vx=forward.x*speed+right.x*lateralVelocity;
-  const vz=forward.z*speed+right.z*lateralVelocity;
-  car.position.x+=vx*dt;
-  car.position.z+=vz*dt;
+  // Side force builds while turning, then tyre grip damps it; handbrake reduces rear grip.
+  const grip=handbrake?PHYS.driftGrip:PHYS.lateralGrip;
+  lateralVelocity += steering*speed*(handbrake?.72:.24)*dt;
+  lateralVelocity *= Math.exp(-grip*dt);
+  yaw += yawRate*dt + lateralVelocity*dt*.018;
+  const travelForward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+  const travelRight=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+  car.position.x += (travelForward.x*speed+travelRight.x*lateralVelocity)*dt;
+  car.position.z += (travelForward.z*speed+travelRight.z*lateralVelocity)*dt;
 
   nearestIndex=findRoadPosition(car.position.x,car.position.z);
   const center=samples[nearestIndex],side=sideVectors[nearestIndex],trackForward=tangents[nearestIndex];
   const dx=car.position.x-center.x,dz=car.position.z-center.z;
   lateral=dx*side.x+dz*side.z;
-  // Solid road boundaries. Hitting an edge loses speed and lateral momentum instead of falling through.
-  const edgeLimit=5.55;
+  const edgeLimit=PHYS.roadHalfWidth;
   if(Math.abs(lateral)>edgeLimit){
     lateral=Math.sign(lateral)*edgeLimit;
-    speed*=0.72;
-    lateralVelocity*=0.28;
+    speed*=PHYS.offroadSpeedLoss;
+    lateralVelocity*=.22;
     car.position.x=center.x+side.x*lateral;
     car.position.z=center.z+side.z*lateral;
+    headingError*=.72;
   }
 
-  // Keep the chassis attached to the sampled solid road surface and follow its slope.
   const next=samples[(nearestIndex+1)%N],prev=samples[(nearestIndex-1+N)%N];
-  const grade=Math.atan2(next.y-prev.y,Math.max(0.01,next.distanceTo(prev)));
+  const grade=Math.atan2(next.y-prev.y,Math.max(.01,next.distanceTo(prev)));
   const tangentYaw=Math.atan2(-trackForward.x,-trackForward.z);
-  const headingError=Math.atan2(Math.sin(yaw-tangentYaw),Math.cos(yaw-tangentYaw));
-  car.position.y=center.y+0.25;
-  car.rotation.set(grade, yaw, THREE.MathUtils.clamp(-steering*speed01*0.11-lateralVelocity*0.008,-0.22,0.22));
+  const actualHeading=Math.atan2(-Math.sin(yaw-tangentYaw),Math.cos(yaw-tangentYaw));
+  car.position.y=center.y+.25;
+  car.rotation.set(grade,yaw,THREE.MathUtils.clamp(-steering*speed01*.11-lateralVelocity*.008,-.22,.22));
 
   const nowProgress=nearestIndex/N;
   if(previousProgress>.82&&nowProgress<.18){
@@ -149,8 +144,6 @@ let desired,look;
 if(camMode===0){desired=p.clone().addScaledVector(forward,-11-speed*.035);desired.y+=5.2+speed*.015;look=p.clone().addScaledVector(forward,7);look.y+=1.2}
 else{desired=p.clone().add(new THREE.Vector3(0,22,0));look=p.clone()}
 camera.position.lerp(desired,1-Math.exp(-dt*4.2));camera.lookAt(look);
-}
-a.lookAt(look);
 }
 function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-last)/1000,.04);last=now;update(dt);renderer.render(scene,camera)}requestAnimationFrame(animate);
 function start(){reset();running=true;paused=false;$('pause').textContent='Ⅱ 暂停';$('overlay').classList.add('hidden')}
