@@ -140,11 +140,11 @@
       for(const tri of candidates){
         const q=closestPointOnTriangle(p,tri.a,tri.b,tri.c),d2=V.len2(V.sub(p,q));
         if(d2<=best2){
-          best2=d2;let n=tri.rawNormal;
-          const side=V.dot(V.sub(p,q),n);
-          if(side< -1e-5)n=V.mul(n,-1);
-          else if(Math.abs(side)<=1e-5&&preferredNormal&&V.dot(n,preferredNormal)<0)n=V.mul(n,-1);
-          best={point:q,normal:n,distance:Math.sqrt(d2),triangleIndex:tri.id,face:tri};
+          best2=d2;
+          // Preserve the authored triangle normal. Flipping it toward the query point would
+          // make a car falling through a road receive a downward impulse instead of recovery.
+          const n=tri.rawNormal;
+          best={point:q,normal:n,distance:Math.sqrt(d2),signedDistance:V.dot(V.sub(p,q),n),triangleIndex:tri.id,face:tri};
         }
       }
       return best;
