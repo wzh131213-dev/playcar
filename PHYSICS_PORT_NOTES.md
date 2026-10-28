@@ -7,7 +7,7 @@
 - Therefore, the original WASM physics cannot be safely transplanted as a drop-in into playcar's current procedural Three.js track: it expects PolyTrack-specific track-part geometry, collision-shape data, car model state and worker protocol.
 
 ## Adaptation now used in playcar
-The current `index.html` uses a browser-native arcade vehicle model compatible with playcar's own procedural track. It includes throttle/braking, speed-dependent steering, lateral slip and grip damping, handbrake grip reduction, road-edge response, and sampled road-height following. Keyboard and touch inputs are mapped to equivalent driving intents.
+The current `index.html` uses a browser-native vehicle model compatible with playcar's procedural track. The latest revision repairs a malformed physics-script section and uses the PHYS tuning constants for longitudinal force/drag, speed-sensitive steering, track-relative heading correction, lateral slip/grip damping, handbrake drift, edge impact loss, and sampled road-height following. Keyboard and touch inputs are mapped to driving intents. A JavaScript syntax parse check passed after the repair.
 
 ## Important distinction
 This is a PolyTrack-like behavioral adaptation, not a direct port of the original WASM solver or its exact formulas/constants. The original solver's full behavior has not been reverse-engineered or validated against reference telemetry. A true direct WASM integration would also require adapting the original track geometry and car-state protocol.
