@@ -34,3 +34,11 @@ A genuine engine port needs one of these approaches:
 - Real-browser driving test: not run.
 
 This report intentionally separates verified source facts from engineering inference.
+
+## Update: original PlayCar Physics Engine 1.0
+
+This assessment records why the original PolyTrack WASM is not a drop-in replacement. Since that assessment, the PlayCar feature branch has added a separately authored engine at `physics/playcar-physics-engine.js`, with integration in `index.html` and regression tests in `tests/playcar-physics.test.js`. This is an independent behavioral implementation; it is not a port of the PolyTrack solver and does not include PolyTrack WASM, source, or proprietary assets.
+
+The engine provides fixed-step dynamics, world-space velocity, tire grip/handbrake drift, gravity and air controls, triangle-based 3D road contact and wall collision, landing response, checkpoints, interpolation, and debug telemetry. See `PLAYCAR_PHYSICS_ENGINE_1.0.md` for architecture and tuning.
+
+Scope limits remain important: the present course is an undulating procedural curve, not a genuine vertical loop/inverted course; the authored route has no dedicated jump ramps or continuous side walls. Loop geometry is currently covered only by a surface-query test fixture, not full lap-driving validation. CI test status and browser deployment status must be verified from the latest GitHub checks; do not infer them from the presence of tests.
