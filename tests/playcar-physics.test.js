@@ -74,7 +74,7 @@ test('3D triangle collision detects and resolves a vertical wall',()=>{
   const wall=TriangleMesh.fromTriangles([[a,b,c],[a,c,d]],4);
   const e=makeEngine({colliderMeshes:[wall]});e.state.velocity={x:0,y:0,z:-16};
   runFor(e,.45,{},60);
-  assert.ok(e.state.collisionCount>0,'wall triangles should generate contact');
+  assert.ok(e.state.totalCollisionEvents>0,'wall triangles should generate a persistent collision event');
   assert.ok(e.state.position.z>-5,'vehicle should be separated from wall instead of passing through');
   finiteState(e);
 });
