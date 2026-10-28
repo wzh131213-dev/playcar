@@ -154,7 +154,7 @@
   function cloneState(s){
     return {position:{...s.position},velocity:{...s.velocity},orientation:{...s.orientation},
       angularVelocity:{...s.angularVelocity},grounded:!!s.grounded,contactNormal:{...s.contactNormal},
-      collisionState:s.collisionState,collisionCount:s.collisionCount,checkpointId:s.checkpointId,
+      collisionState:s.collisionState,collisionCount:s.collisionCount,collisionTimer:s.collisionTimer||0,totalCollisionEvents:s.totalCollisionEvents||0,checkpointId:s.checkpointId,
       gripState:s.gripState,tick:s.tick};
   }
 
@@ -202,7 +202,7 @@
       this.checkpoints=[];this.currentCheckpointIndex=0;
       this.state={position:V.make(0,0,0),velocity:V.make(0,0,0),orientation:Q.identity(),
         angularVelocity:V.make(0,0,0),grounded:false,contactNormal:V.make(0,1,0),collisionState:'none',
-        collisionCount:0,checkpointId:'start',gripState:'AIR',tick:0};
+        collisionCount:0,collisionTimer:0,totalCollisionEvents:0,checkpointId:'start',gripState:'AIR',tick:0};
       this.previousState=cloneState(this.state);
       if(options.position)this.reset(options.position,options.yaw||0);
     }
@@ -219,7 +219,7 @@
       const forward={x:-Math.sin(yaw),y:0,z:-Math.cos(yaw)};
       this.accumulator=0;this.state={position:{...position},velocity:V.make(0,0,0),
         orientation:Q.fromForwardUp(forward,up),angularVelocity:V.make(0,0,0),grounded:false,
-        contactNormal:{...up},collisionState:'none',collisionCount:0,checkpointId:this.checkpoints[this.currentCheckpointIndex]?.id||'start',
+        contactNormal:{...up},collisionState:'none',collisionCount:0,collisionTimer:0,totalCollisionEvents:0,checkpointId:this.checkpoints[this.currentCheckpointIndex]?.id||'start',
         gripState:'AIR',tick:this.tick};
       this.previousState=cloneState(this.state);
     }
@@ -278,7 +278,7 @@
               const tangent=V.sub(s.velocity,V.mul(normal,V.dot(s.velocity,normal)));
               s.velocity=V.sub(s.velocity,V.mul(tangent,c.collisionFriction));
             }
-            s.collisionState='wall';s.collisionCount++;hitAny=true;break;
+            s.collisionState='wall';s.collisionTimer=.35;s.collisionCount++;s.totalCollisionEvents=(s.totalCollisionEvents||0)+1;hitAny=true;break;
           }
           if(hitAny)break;
         }
@@ -288,7 +288,9 @@
     _fixedStep(dt,input){
       const c=this.config,s=this.state,t0=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
       this.previousState=cloneState(s);
-      s.collisionState='none';s.collisionCount=0;
+      s.collisionCount=0;
+      if(s.collisionTimer>0){s.collisionTimer=Math.max(0,s.collisionTimer-dt);s.collisionState=s.collisionTimer>0?'wall':'none';}
+      else s.collisionState='none';
       const contactsBefore=this._wheelContacts();
       const contactThreshold=c.suspensionRestLength+.12;
       const supportedBefore=contactsBefore.filter(h=>h.distance<=contactThreshold);
@@ -397,7 +399,7 @@
       const s=this.state;
       return {speed:V.len(s.velocity),verticalSpeed:s.velocity.y,grounded:s.grounded,
         grip:s.gripState,collision:s.collisionState,collisionCount:s.collisionCount,
-        physicsMs:this.lastStepMs,tick:s.tick,droppedTime:this.droppedTime,checkpointId:s.checkpointId};
+        physicsMs:this.lastStepMs,tick:s.tick,droppedTime:this.droppedTime,collisionEvents:s.totalCollisionEvents||0,checkpointId:s.checkpointId};
     }
   }
 
