@@ -1,4 +1,4 @@
-/* PlayCar Physics Engine 1.4.0
+/* PlayCar Physics Engine 1.5.0
  * Original, dependency-free vehicle dynamics and triangle collision solver.
  * Units are game-world units; callers own rendering and track geometry.
  * No PolyTrack code, WASM, assets, or formulas are used.
@@ -189,7 +189,7 @@
     wheelbase:2.7,maxSteerAngle:.48,highSpeedSteerScale:.48,
     tireGrip:3.6,handbrakeGrip:3.6,handbrakeYawMultiplier:1.55,
     reverseAcceleration:9,downforceCoefficient:.0014,maxDownforce:10,
-    airYawRate:.62,airPitchRate:.55,airRollRate:.82,
+    airYawRate:.62,airPitchRate:.55,airRollRate:.82,airPitchStability:1.8,
     wheelbaseHalf:1.35,trackHalfWidth:.78,wheelProbeY:.07,
     suspensionRestLength:.09,suspensionReach:.9,contactPositionGain:1,
     collisionRestitution:.16,collisionFriction:.42,
@@ -440,7 +440,12 @@
         const airYaw=Q.axis(V.make(0,1,0),airSteer*c.airYawRate*dt);
         s.orientation=Q.normalize(Q.mul(airYaw,s.orientation));
         const localRight=Q.rotate(s.orientation,V.make(1,0,0)),localForward=Q.rotate(s.orientation,V.make(0,0,-1));
-        s.orientation=Q.normalize(Q.mul(Q.axis(localRight,((input.brake?1:0)-(input.gas||input.throttle?1:0))*c.airPitchRate*dt),s.orientation));
+        const pitchInput=(input.brake?1:0)-(input.gas||input.throttle?1:0);
+        const pitchError=Math.asin(V.clamp(localForward.y,-1,1));
+        // With no deliberate pitch input, gently bring the nose back toward level.
+        // Manual gas/brake pitch control remains fully available while airborne.
+        const pitchRecovery=pitchInput===0?-pitchError*c.airPitchStability*dt:0;
+        s.orientation=Q.normalize(Q.mul(Q.axis(localRight,pitchInput*c.airPitchRate*dt+pitchRecovery),s.orientation));
         s.orientation=Q.normalize(Q.mul(Q.axis(localForward,airSteer*c.airRollRate*dt),s.orientation));
       }
       // Wind is an external horizontal force; wetness reduces tire grip above.
@@ -526,7 +531,7 @@
     }
   }
 
-  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.4.0'};
+  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.5.0'};
   root.PlayCarPhysicsEngine=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
