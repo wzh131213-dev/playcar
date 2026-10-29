@@ -140,6 +140,9 @@
       for(const tri of candidates){
         const q=closestPointOnTriangle(p,tri.a,tri.b,tri.c),d2=V.len2(V.sub(p,q));
         if(d2<=best2){
+          // Keep the closest triangle, not merely the last triangle within range.
+          // Without updating best2, wheel support can jump between arbitrary road
+          // triangles and appear to lose the solid ground on long/curved sections.
           best2=d2;
           // Orient the contact normal consistently with the previous support normal.
           // Road triangles may be wound either way; trusting rawNormal can make the
