@@ -83,6 +83,16 @@ test('solid chassis collision prevents the body from passing through the road',(
   assert.equal(e.state.totalCollisionEvents,0,'road contact should not be reported as a wall collision');
   finiteState(e);
 });
+test('the world ground collider catches a car that falls off the road',()=>{
+  const y=-2,size=100;
+  const a={x:-size,y,z:-size},b={x:-size,y,z:size},c={x:size,y,z:size},d={x:size,y,z:-size};
+  const floor=TriangleMesh.fromTriangles([[a,b,c],[a,c,d]],8);
+  const e=new Engine({surfaceMesh:null,colliderMeshes:[floor],position:{x:0,y:-2.9,z:0}});
+  e._applyStaticCollisions();
+  assert.ok(e.state.position.y>-2.2,'the solid floor should push the chassis above the ground plane');
+  assert.ok(e.state.totalCollisionEvents>0,'landing on the ground should register a collision');
+  finiteState(e);
+});
 test('a falling car contacts the road and recovers from a landing',()=>{
   const e=makeEngine();e.state.position.y=2;e.state.velocity={x:0,y:-12,z:0};
   runFor(e,.75,{},60);
