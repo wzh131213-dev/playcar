@@ -1,4 +1,4 @@
-/* PlayCar Physics Engine 1.2.0
+/* PlayCar Physics Engine 1.3.0
  * Original, dependency-free vehicle dynamics and triangle collision solver.
  * Units are game-world units; callers own rendering and track geometry.
  * No PolyTrack code, WASM, assets, or formulas are used.
@@ -187,7 +187,7 @@
     gravity:24,maxSpeed:78,engineAcceleration:28,brakeAcceleration:56,
     rollingResistance:.22,aerodynamicDrag:.0026,windInfluence:.16,
     wheelbase:2.7,maxSteerAngle:.48,highSpeedSteerScale:.48,
-    tireGrip:1.65,handbrakeGrip:.38,handbrakeYawMultiplier:1.55,
+    tireGrip:2.4,handbrakeGrip:.5,handbrakeYawMultiplier:1.55,
     reverseAcceleration:9,downforceCoefficient:.0014,maxDownforce:10,
     airYawRate:.62,airPitchRate:.55,airRollRate:.82,
     wheelbaseHalf:1.35,trackHalfWidth:.78,wheelProbeY:.07,
@@ -420,7 +420,10 @@
         const longitudinalCapacity=tireCapacity;
         const longitudinalUse=V.clamp(Math.abs(longitudinalAccel)/longitudinalCapacity,0,1);
         const lateralCapacity=longitudinalCapacity*Math.sqrt(Math.max(0,1-longitudinalUse*longitudinalUse));
-        const sideAccel=V.clamp(lateralDemand,-lateralCapacity,lateralCapacity);
+        // Strong road bite without oscillatory side-to-side velocity flips:
+        // tire force may cancel slip in one step, but cannot reverse it instantly.
+        const sideForceLimit=Math.min(lateralCapacity,Math.abs(sideSpeed)/dt);
+        const sideAccel=V.clamp(lateralDemand,-sideForceLimit,sideForceLimit);
         s.velocity=V.add(s.velocity,V.mul(right,sideAccel*dt));
         // Rolling tire drag and lateral scrub: more slip costs more speed, while
         // handbrake reduces rear grip to permit a controllable low-poly drift.
@@ -523,7 +526,7 @@
     }
   }
 
-  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.2.0'};
+  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.3.0'};
   root.PlayCarPhysicsEngine=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
