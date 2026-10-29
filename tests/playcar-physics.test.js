@@ -210,7 +210,7 @@ test('root HTML is a physics lab page and no longer contains the racing game ren
   const fs=require('node:fs');
   const html=fs.readFileSync(require('node:path').join(__dirname,'..','index.html'),'utf8');
   assert.match(html,/PlayCar Physics Lab/);
-  assert.match(html,/physics\/playcar-physics-engine\.js\?v=1\.5\.0/);
+  assert.match(html,/physics\/playcar-physics-engine\.js\?v=1\.6\.0/);
   assert.match(html,/id="run-tests"/);
   assert.match(html,/id="test-results"/);
   assert.doesNotMatch(html,/POLY.?RUSH|TIME ATTACK|THREE\.js|function updateWeather\(dt\)/i);
