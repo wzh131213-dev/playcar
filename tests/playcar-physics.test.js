@@ -268,14 +268,10 @@ test('default tire grip is stronger and reduces side slip faster than the old fl
     'stronger default tire grip should remove noticeably more lateral velocity');
   finiteState(standard);finiteState(oldGrip);
 });
-test('handbrake still allows more side slip than strengthened normal tire grip',()=>{
+test('handbrake does not reduce tire-ground friction below normal grip',()=>{
   const normal=makeEngine();
   const handbrake=makeEngine();
-  normal.state.velocity={x:9,y:0,z:-18};
-  handbrake.state.velocity={x:9,y:0,z:-18};
-  runFor(normal,.35,{},60);
-  runFor(handbrake,.35,{handbrake:1},60);
-  assert.ok(Math.abs(handbrake.state.velocity.x)>Math.abs(normal.state.velocity.x),
-    'handbrake should still loosen rear grip relative to normal driving');
-  finiteState(normal);finiteState(handbrake);
+  assert.equal(handbrake.config.handbrakeGrip,normal.config.tireGrip,
+    'handbrake grip should equal normal tire grip');
+  assert.equal(handbrake.config.handbrakeGrip,3.6);
 });
