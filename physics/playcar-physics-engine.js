@@ -1,4 +1,4 @@
-/* PlayCar Physics Engine 1.0
+/* PlayCar Physics Engine 1.0.3
  * Original, dependency-free vehicle dynamics and triangle collision solver.
  * Units are game-world units; callers own rendering and track geometry.
  * No PolyTrack code, WASM, assets, or formulas are used.
@@ -187,7 +187,7 @@
     tireGrip:1.65,handbrakeGrip:.38,handbrakeYawMultiplier:1.55,
     airYawRate:.62,airPitchRate:.55,airRollRate:.82,
     wheelbaseHalf:1.35,trackHalfWidth:.78,wheelProbeY:.07,
-    suspensionRestLength:.09,suspensionReach:.9,contactPositionGain:.72,
+    suspensionRestLength:.09,suspensionReach:.9,contactPositionGain:1,
     collisionRestitution:.16,collisionFriction:.42,
     bodyHalfExtents:{x:1.05,y:.84,z:2.1},bodyCenterY:.84,
     maxCollisionIterations:3
@@ -351,7 +351,8 @@
           nsum=V.add(nsum,h.normal);
           if(h.signedDistance<c.suspensionRestLength){
             // Signed distance recovers probes that have crossed through the road triangle.
-            const depth=c.suspensionRestLength-h.signedDistance;
+            // Add a small separation margin to prevent residual road penetration.
+            const depth=c.suspensionRestLength-h.signedDistance+.012;
             correction=V.add(correction,V.mul(h.normal,depth));correctionCount++;
           }
           const vn=V.dot(s.velocity,h.normal);
@@ -409,7 +410,7 @@
     }
   }
 
-  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.0.2'};
+  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.0.3'};
   root.PlayCarPhysicsEngine=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
