@@ -287,3 +287,43 @@ test('handbrake does not reduce tire-ground friction below normal grip',()=>{
     'handbrake grip should equal normal tire grip');
   assert.equal(handbrake.config.handbrakeGrip,3.6);
 });
+
+
+test('engine exposes reusable game-integration presets and analog steering',()=>{
+  const presets = require('../physics/playcar-physics-engine.js').presets;
+  assert.ok(presets.arcade && presets.simcade && presets.simulation,
+    'arcade, simcade, and simulation presets should be available');
+  const e = new Engine({surfaceMesh:rectangleSurface(),position:{x:0,y:-.03,z:0},preset:'simcade'});
+  e.advance(1/60,{throttle:.5,steer:.5});
+  assert.ok(V.len(e.state.velocity)>0,'analog throttle should accelerate');
+  const forward=Q.rotate(e.state.orientation,{x:0,y:0,z:-1});
+  assert.ok(forward.x>0,'positive analog steer should turn right while moving forward');
+  finiteState(e);
+});
+
+test('integration aliases and defensive state snapshots work without sharing mutable objects',()=>{
+  const e=makeEngine();
+  assert.equal(typeof e.update,'function');
+  assert.equal(typeof e.step,'function');
+  assert.equal(typeof e.setInput,'function');
+  assert.equal(typeof e.applyImpulse,'function');
+  assert.equal(typeof e.getState,'function');
+  e.setInput({throttle:1});
+  e.update(1/60);
+  const snapshot=e.getState();
+  const originalX=e.state.position.x;
+  snapshot.position.x=99999;
+  assert.equal(e.state.position.x,originalX,'snapshot must not mutate live simulation state');
+  e.applyImpulse({x:2,y:0,z:0});
+  assert.ok(e.state.velocity.x>0,'impulse should change velocity');
+  finiteState(e);
+});
+
+test('input aliases, analog brake, and invalid numeric input stay bounded',()=>{
+  const e=makeEngine();
+  e.update(1/60,{accelerate:1,steering:-.6});
+  assert.ok(V.len(e.state.velocity)>0,'accelerate alias should be accepted');
+  e.update(1/60,{throttle:NaN,brake:Infinity,steer:NaN});
+  finiteState(e);
+  assert.ok(V.len(e.state.velocity)<e.config.maxSpeed*1.36,'invalid input must not destabilize speed');
+});
