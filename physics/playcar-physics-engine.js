@@ -81,6 +81,23 @@
       for(const tri of triangles)this.addTriangle(tri[0],tri[1],tri[2]);
     }
     static fromTriangles(triangles,cellSize=8){return new TriangleMesh(triangles,cellSize);}
+    static fromHeightfield(options={},cellSize=8){
+      const width=Math.max(.001,Number(options.width)||100),depth=Math.max(.001,Number(options.depth)||100);
+      const segmentsX=Math.max(1,Math.floor(options.segmentsX||32)),segmentsZ=Math.max(1,Math.floor(options.segmentsZ||32));
+      const origin=options.origin||{x:0,y:0,z:0},heightAt=typeof options.heightAt==='function'?options.heightAt:()=>0;
+      const triangles=[],dx=width/segmentsX,dz=depth/segmentsZ;
+      const point=(ix,iz)=>{
+        const x=origin.x-width/2+ix*dx,z=origin.z-depth/2+iz*dz;
+        const y=Number(heightAt(x,z,ix,iz));
+        if(!Number.isFinite(y))throw new TypeError('TriangleMesh.fromHeightfield: heightAt must return a finite number');
+        return {x,y:y+origin.y,z};
+      };
+      for(let iz=0;iz<segmentsZ;iz++)for(let ix=0;ix<segmentsX;ix++){
+        const a=point(ix,iz),b=point(ix,iz+1),c=point(ix+1,iz+1),d=point(ix+1,iz);
+        triangles.push([a,b,c],[a,c,d]);
+      }
+      return new TriangleMesh(triangles,cellSize);
+    }
     static fromBufferGeometry(geometry,matrixElements=null,cellSize=8){
       const attr=geometry&&geometry.attributes&&geometry.attributes.position;
       if(!attr)throw new Error('TriangleMesh: geometry has no position attribute');
@@ -297,7 +314,7 @@
     }
     reset(position={x:0,y:0,z:0},yaw=0,up={x:0,y:1,z:0}){
       const forward={x:-Math.sin(yaw),y:0,z:-Math.cos(yaw)};
-      this.accumulator=0;this.state={position:{...position},velocity:V.make(0,0,0),
+      this.accumulator=0;this.lastInput=this._normalizeInput({});this.telemetry={longitudinalSpeed:0,lateralSpeed:0,slipAngle:0,downforce:0,airborne:true,wheelContacts:0};this.state={position:{...position},velocity:V.make(0,0,0),
         orientation:Q.fromForwardUp(forward,up),angularVelocity:V.make(0,0,0),grounded:false,
         contactNormal:{...up},collisionState:'none',collisionCount:0,collisionTimer:0,totalCollisionEvents:0,checkpointId:this.checkpoints[this.currentCheckpointIndex]?.id||'start',
         gripState:'AIR',tick:this.tick};
