@@ -201,7 +201,8 @@
     constructor(options={}){
       this.config=Object.assign({},DEFAULTS,options.config||{});
       this.config.bodyHalfExtents=Object.assign({},DEFAULTS.bodyHalfExtents,(options.config||{}).bodyHalfExtents||{});
-      this.surfaceMesh=options.surfaceMesh||null;\n      this.groundPlaneY=Number.isFinite(options.groundPlaneY)?options.groundPlaneY:null;
+      this.surfaceMesh=options.surfaceMesh||null;
+      this.groundPlaneY=Number.isFinite(options.groundPlaneY)?options.groundPlaneY:null;
       this.colliderMeshes=options.colliderMeshes||[];
       this.frameAt=typeof options.frameAt==='function'?options.frameAt:null;
       this.accumulator=0;this.tick=0;this.droppedTime=0;this.lastStepMs=0;this.totalStepMs=0;
