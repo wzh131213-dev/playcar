@@ -248,3 +248,27 @@ test('game HTML requests the current physics-engine cache version',()=>{
   assert.ok(html.includes(`./physics/playcar-physics-engine.js?v=${api.version}`),
     'HTML cache-bust version must match the engine version');
 });
+
+test('default tire grip is stronger and reduces side slip faster than the old floaty setup',()=>{
+  const standard=makeEngine();
+  const oldGrip=makeEngine({config:{tireGrip:1.65}});
+  assert.ok(standard.config.tireGrip>=2.2,'default tire grip should be tuned up for planted arcade handling');
+  standard.state.velocity={x:9,y:0,z:-18};
+  oldGrip.state.velocity={x:9,y:0,z:-18};
+  runFor(standard,.35,{},60);
+  runFor(oldGrip,.35,{},60);
+  assert.ok(Math.abs(standard.state.velocity.x)<Math.abs(oldGrip.state.velocity.x)*.88,
+    'stronger default tire grip should remove noticeably more lateral velocity');
+  finiteState(standard);finiteState(oldGrip);
+});
+test('handbrake still allows more side slip than strengthened normal tire grip',()=>{
+  const normal=makeEngine();
+  const handbrake=makeEngine();
+  normal.state.velocity={x:9,y:0,z:-18};
+  handbrake.state.velocity={x:9,y:0,z:-18};
+  runFor(normal,.35,{},60);
+  runFor(handbrake,.35,{handbrake:1},60);
+  assert.ok(Math.abs(handbrake.state.velocity.x)>Math.abs(normal.state.velocity.x),
+    'handbrake should still loosen rear grip relative to normal driving');
+  finiteState(normal);finiteState(handbrake);
+});
