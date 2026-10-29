@@ -185,7 +185,7 @@
   const DEFAULTS={
     fixedTimeStep:1/120,maxSubsteps:16,maxFrameDelta:.12,
     gravity:24,maxSpeed:78,engineAcceleration:28,brakeAcceleration:56,
-    rollingResistance:.22,aerodynamicDrag:.0026,
+    rollingResistance:.22,aerodynamicDrag:.0026,windInfluence:.16,
     wheelbase:2.7,maxSteerAngle:.48,highSpeedSteerScale:.48,
     tireGrip:1.65,handbrakeGrip:.38,handbrakeYawMultiplier:1.55,
     airYawRate:.62,airPitchRate:.55,airRollRate:.82,
@@ -205,6 +205,7 @@
       this.groundPlaneY=Number.isFinite(options.groundPlaneY)?options.groundPlaneY:null;
       this.colliderMeshes=options.colliderMeshes||[];
       this.frameAt=typeof options.frameAt==='function'?options.frameAt:null;
+      this.weather={wind:{x:0,z:0},wetness:0};
       this.accumulator=0;this.tick=0;this.droppedTime=0;this.lastStepMs=0;this.totalStepMs=0;
       this.checkpoints=[];this.currentCheckpointIndex=0;
       this.state={position:V.make(0,0,0),velocity:V.make(0,0,0),orientation:Q.identity(),
@@ -212,6 +213,11 @@
         collisionCount:0,collisionTimer:0,totalCollisionEvents:0,checkpointId:'start',gripState:'AIR',tick:0};
       this.previousState=cloneState(this.state);
       if(options.position)this.reset(options.position,options.yaw||0);
+    }
+    setWeather(weather={}){
+      const wind=weather.wind||{};
+      this.weather={wind:{x:Number.isFinite(wind.x)?V.clamp(wind.x,-20,20):0,z:Number.isFinite(wind.z)?V.clamp(wind.z,-20,20):0},wetness:Number.isFinite(weather.wetness)?V.clamp(weather.wetness,0,1):0};
+      return {...this.weather,wind:{...this.weather.wind}};
     }
     addCheckpoint(cp){
       const forward=V.norm(cp.forward||V.make(0,0,-1));
@@ -377,7 +383,8 @@
         // Pacejka-style slip-angle curve plus a combined-grip friction ellipse.
         // Tire forces rise progressively, saturate at mu * normal load, then
         // fall away after peak slip so the car can slide instead of snapping.
-        const baseMu=handbrake>0?c.handbrakeGrip:c.tireGrip;
+        const wetGripScale=1-.42*this.weather.wetness;
+        const baseMu=(handbrake>0?c.handbrakeGrip:c.tireGrip)*wetGripScale;
         const sideSpeed=V.dot(s.velocity,right);
         const forwardSpeed=V.dot(s.velocity,fwd);
         const slipAngle=Math.atan2(sideSpeed,Math.max(1,Math.abs(forwardSpeed)));
@@ -410,6 +417,9 @@
         s.orientation=Q.normalize(Q.mul(Q.axis(localRight,((input.brake?1:0)-(input.gas||input.throttle?1:0))*c.airPitchRate*dt),s.orientation));
         s.orientation=Q.normalize(Q.mul(Q.axis(localForward,airSteer*c.airRollRate*dt),s.orientation));
       }
+      // Wind is an external horizontal force; wetness reduces tire grip above.
+      s.velocity.x+=this.weather.wind.x*c.windInfluence*dt;
+      s.velocity.z+=this.weather.wind.z*c.windInfluence*dt;
       s.velocity.y-=c.gravity*dt;
       const velocityMagnitude=V.len(s.velocity);
       if(velocityMagnitude>c.maxSpeed*1.35)s.velocity=V.mul(s.velocity,(c.maxSpeed*1.35)/velocityMagnitude);
@@ -490,7 +500,7 @@
     }
   }
 
-  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.0.9'};
+  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.1.0'};
   root.PlayCarPhysicsEngine=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
