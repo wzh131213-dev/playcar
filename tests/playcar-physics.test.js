@@ -175,3 +175,20 @@ test('large render delta is clamped and cannot create an unstable physics step',
   assert.ok(r.steps<=e.config.maxSubsteps,'substep budget should be enforced');
   assert.ok(r.droppedTime>=0,'dropped backlog should be reported');finiteState(e);
 });
+
+
+test('weather setter clamps wetness and wind to safe finite ranges',()=>{
+  const e=makeEngine();const w=e.setWeather({wetness:4,wind:{x:100,z:-100}});
+  assert.equal(w.wetness,1);assert.equal(w.wind.x,20);assert.equal(w.wind.z,-20);
+  const clean=e.setWeather({wetness:NaN,wind:{x:Infinity,z:NaN}});
+  assert.equal(clean.wetness,0);assert.deepEqual(clean.wind,{x:0,z:0});
+});
+test('crosswind changes vehicle velocity in the wind direction',()=>{
+  const calm=makeEngine(),windy=makeEngine();calm.state.velocity={x:0,y:0,z:-12};windy.state.velocity={x:0,y:0,z:-12};
+  windy.setWeather({wind:{x:10,z:0},wetness:0});runFor(calm,.8,{},60);runFor(windy,.8,{});
+  assert.ok(windy.state.velocity.x>calm.state.velocity.x+.5,'crosswind should apply measurable lateral force');finiteState(windy);
+});
+test('wet road reduces tire grip and increases retained side slip',()=>{
+  const dry=makeEngine(),wet=makeEngine();dry.state.velocity={x:8,y:0,z:-12};wet.state.velocity={x:8,y:0,z:-12};wet.setWeather({wetness:1});
+  runFor(dry,.5,{},60);runFor(wet,.5,{});assert.ok(Math.abs(wet.state.velocity.x)>Math.abs(dry.state.velocity.x),'wet tires should retain more lateral slip');finiteState(wet);
+});
