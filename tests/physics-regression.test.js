@@ -19,6 +19,20 @@ function makePhysics() {
   return { physics, road };
 }
 
+test('closestPoint keeps the nearest triangle instead of the last in-range triangle', () => {
+  const triangleAt = y => [
+    { x: -5, y, z: -5 },
+    { x: 5, y, z: -5 },
+    { x: -5, y, z: 5 }
+  ];
+  // Deliberately list the near surface first and the farther surface second.
+  const mesh = TriangleMesh.fromTriangles([triangleAt(0.1), triangleAt(1.0)], 8);
+  const hit = mesh.closestPoint({ x: 0, y: 0.2, z: 0 }, 2, { x: 0, y: 1, z: 0 });
+  assert.ok(hit, 'wheel probe should find a surface');
+  assert.ok(Math.abs(hit.point.y - 0.1) < 1e-6,
+    `expected nearest surface y=0.1, got y=${hit.point.y}`);
+});
+
 test('road contact normal is oriented toward the supported car even if triangle winding is inverted', () => {
   const road = makeInvertedFlatRoad();
   const hit = road.closestPoint({ x: 0, y: 0.2, z: 0 }, 1, { x: 0, y: 1, z: 0 });
