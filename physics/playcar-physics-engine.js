@@ -191,7 +191,8 @@
     airYawRate:.62,airPitchRate:.55,airRollRate:.82,
     wheelbaseHalf:1.35,trackHalfWidth:.78,wheelProbeY:.07,
     suspensionRestLength:.09,suspensionReach:.9,contactPositionGain:1,
-    collisionRestitution:.16,collisionFriction:.42,\n    surfaceCollisionReach:.9,surfaceSeparation:.012,surfaceCollisionRestitution:.02,maxSurfaceCollisionIterations:4,
+    collisionRestitution:.16,collisionFriction:.42,
+    surfaceCollisionReach:.9,surfaceSeparation:.012,surfaceCollisionRestitution:.02,maxSurfaceCollisionIterations:4,
     bodyHalfExtents:{x:1.05,y:.8,z:2.1},bodyCenterY:.84,
     maxCollisionIterations:3
   };
