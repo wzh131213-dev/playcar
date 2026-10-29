@@ -206,14 +206,14 @@ test('wet road reduces tire grip and increases retained side slip',()=>{
 });
 
 
-test('game HTML never updates removed debug panel elements in the render loop',()=>{
+test('root HTML is a physics lab page and no longer contains the racing game renderer',()=>{
   const fs=require('node:fs');
   const html=fs.readFileSync(require('node:path').join(__dirname,'..','index.html'),'utf8');
-  for(const id of ['debugSpeed','debugVertical','debugGrip','debugGrounded','debugCollision','debugMs','debugTick','debugEvents','debugDropped']){
-    assert.equal(html.includes("$('"+id+"')"),false,'render loop must not access removed #'+id);
-  }
-  assert.match(html,/function animate\(now\)[\s\S]*?update\(dt\);renderer\.render\(scene,camera\)/);
-  assert.match(html,/function updateWeather\(dt\)/);
+  assert.match(html,/PlayCar Physics Lab/);
+  assert.match(html,/physics\/playcar-physics-engine\.js\?v=1\.5\.0/);
+  assert.match(html,/id="run-tests"/);
+  assert.match(html,/id="test-results"/);
+  assert.doesNotMatch(html,/POLY.?RUSH|TIME ATTACK|THREE\.js|function updateWeather\(dt\)/i);
 });
 
 test('grounded braking is limited by tire friction instead of raw brake strength',()=>{
