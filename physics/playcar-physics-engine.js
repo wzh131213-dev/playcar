@@ -84,7 +84,9 @@
     static fromHeightfield(options={},cellSize=8){
       const width=Math.max(.001,Number(options.width)||100),depth=Math.max(.001,Number(options.depth)||100);
       const segmentsX=Math.max(1,Math.floor(options.segmentsX||32)),segmentsZ=Math.max(1,Math.floor(options.segmentsZ||32));
-      const origin=options.origin||{x:0,y:0,z:0},heightAt=typeof options.heightAt==='function'?options.heightAt:()=>0;
+      const sourceOrigin=options.origin||{},origin={x:Number.isFinite(sourceOrigin.x)?sourceOrigin.x:0,
+        y:Number.isFinite(sourceOrigin.y)?sourceOrigin.y:0,z:Number.isFinite(sourceOrigin.z)?sourceOrigin.z:0};
+      const heightAt=typeof options.heightAt==='function'?options.heightAt:()=>0;
       const triangles=[],dx=width/segmentsX,dz=depth/segmentsZ;
       const point=(ix,iz)=>{
         const x=origin.x-width/2+ix*dx,z=origin.z-depth/2+iz*dz;
