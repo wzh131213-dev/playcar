@@ -188,6 +188,7 @@
     rollingResistance:.22,aerodynamicDrag:.0026,windInfluence:.16,
     wheelbase:2.7,maxSteerAngle:.48,highSpeedSteerScale:.48,
     tireGrip:1.65,handbrakeGrip:.38,handbrakeYawMultiplier:1.55,
+    reverseAcceleration:9,downforceCoefficient:.0014,maxDownforce:10,
     airYawRate:.62,airPitchRate:.55,airRollRate:.82,
     wheelbaseHalf:1.35,trackHalfWidth:.78,wheelProbeY:.07,
     suspensionRestLength:.09,suspensionReach:.9,contactPositionGain:1,
@@ -371,11 +372,36 @@
       const fwd=Q.rotate(s.orientation,V.make(0,0,-1)),right=Q.rotate(s.orientation,V.make(1,0,0));
       const longitudinal=V.dot(s.velocity,fwd),speed=V.len(s.velocity);
       const speedRatio=V.clamp(Math.abs(longitudinal)/c.maxSpeed,0,1);
-      const drive=throttle*c.engineAcceleration*(1-speedRatio*.68);
-      s.velocity=V.add(s.velocity,V.mul(fwd,drive*dt));
+      const wetGripScale=1-.42*this.weather.wetness;
+      const baseMu=(handbrake>0?c.handbrakeGrip:c.tireGrip)*wetGripScale;
+      // Speed-squared aerodynamic load follows the road support normal. It is
+      // capped so an arcade car stays controllable and does not gain infinite grip.
+      const downforce=wasGrounded?Math.min(c.maxDownforce,speed*speed*c.downforceCoefficient):0;
+      const tireCapacity=Math.max(.001,baseMu*(c.gravity+downforce));
+      if(downforce>0&&V.len2(s.contactNormal)>EPS){
+        s.velocity=V.sub(s.velocity,V.mul(s.contactNormal,downforce*dt));
+      }
+      const longitudinalBeforeDrive=V.dot(s.velocity,fwd);
+      const driveDemand=throttle*c.engineAcceleration*(1-speedRatio*.68);
+      if(throttle>0){
+        const drive=wasGrounded?Math.min(driveDemand,tireCapacity):driveDemand;
+        s.velocity=V.add(s.velocity,V.mul(fwd,drive*dt));
+      }
       let longNow=V.dot(s.velocity,fwd);
-      const braking= Math.min(Math.abs(longNow),brake*c.brakeAcceleration*dt);
-      if(braking>0)s.velocity=V.sub(s.velocity,V.mul(fwd,Math.sign(longNow)*braking));
+      if(brake>0){
+        if(Math.abs(longNow)>.5){
+          // Braking is a tire force, not an unlimited velocity reduction.
+          const requested=brake*c.brakeAcceleration;
+          const available=wasGrounded?tireCapacity:requested;
+          const braking=Math.min(Math.abs(longNow)/dt,requested,available);
+          s.velocity=V.sub(s.velocity,V.mul(fwd,Math.sign(longNow)*braking*dt));
+        }else if(wasGrounded){
+          // Like PolyTrack's arcade controls, holding brake after stopping selects reverse.
+          const reverse=Math.min(brake*c.reverseAcceleration,tireCapacity);
+          s.velocity=V.sub(s.velocity,V.mul(fwd,reverse*dt));
+        }
+      }
+      const longitudinalAccel=(V.dot(s.velocity,fwd)-longitudinalBeforeDrive)/dt;
       const postBrakeSpeed=V.len(s.velocity);
       s.velocity=V.mul(s.velocity,Math.exp(-(c.rollingResistance+c.aerodynamicDrag*postBrakeSpeed)*dt));
       if(wasGrounded){
@@ -383,8 +409,6 @@
         // Pacejka-style slip-angle curve plus a combined-grip friction ellipse.
         // Tire forces rise progressively, saturate at mu * normal load, then
         // fall away after peak slip so the car can slide instead of snapping.
-        const wetGripScale=1-.42*this.weather.wetness;
-        const baseMu=(handbrake>0?c.handbrakeGrip:c.tireGrip)*wetGripScale;
         const sideSpeed=V.dot(s.velocity,right);
         const forwardSpeed=V.dot(s.velocity,fwd);
         const slipAngle=Math.atan2(sideSpeed,Math.max(1,Math.abs(forwardSpeed)));
@@ -393,10 +417,9 @@
         const pacejkaShape=bx-tireE*(bx-Math.atan(bx));
         const lateralDemand=-baseMu*c.gravity*Math.sin(tireC*Math.atan(pacejkaShape));
         // Longitudinal acceleration consumes the same tire grip budget as cornering.
-        const longitudinalDemand=Math.abs(throttle*c.engineAcceleration-brake*c.brakeAcceleration);
-        const longitudinalCapacity=Math.max(.001,baseMu*c.gravity);
-        const longitudinalUse=V.clamp(longitudinalDemand/longitudinalCapacity,0,1);
-        const lateralCapacity=baseMu*c.gravity*Math.sqrt(Math.max(0,1-longitudinalUse*longitudinalUse));
+        const longitudinalCapacity=tireCapacity;
+        const longitudinalUse=V.clamp(Math.abs(longitudinalAccel)/longitudinalCapacity,0,1);
+        const lateralCapacity=longitudinalCapacity*Math.sqrt(Math.max(0,1-longitudinalUse*longitudinalUse));
         const sideAccel=V.clamp(lateralDemand,-lateralCapacity,lateralCapacity);
         s.velocity=V.add(s.velocity,V.mul(right,sideAccel*dt));
         // Rolling tire drag and lateral scrub: more slip costs more speed, while
@@ -407,7 +430,7 @@
         const steerAngle=c.maxSteerAngle*(1-speedRatio*(1-c.highSpeedSteerScale))*steer;
         let yawRate=-V.dot(s.velocity,fwd)/c.wheelbase*Math.tan(steerAngle); // Forward is -Z: invert yaw so left input turns left and right input turns right.
         if(handbrake>0)yawRate*=c.handbrakeYawMultiplier;
-        const maxYaw=Math.max(.08,baseMu*c.gravity/speedForSteer);
+        const maxYaw=Math.max(.08,longitudinalCapacity/speedForSteer);
         yawRate=V.clamp(yawRate,-maxYaw,maxYaw);
         s.orientation=Q.normalize(Q.mul(Q.axis(normal,yawRate*dt),s.orientation));
       }else{
