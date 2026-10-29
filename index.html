@@ -4,14 +4,13 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#0b111c"><title>POLY RUSH · 3D竞速</title>
 <style>
-:root{color-scheme:dark;--cyan:#8ff7ff;--panel:rgba(9,15,26,.78)}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#8dc7e5;font-family:Inter,system-ui,-apple-system,"PingFang SC",sans-serif;touch-action:none}canvas{display:block;width:100%;height:100%;outline:0}#ui{position:fixed;inset:0;pointer-events:none;color:#fff;text-shadow:0 2px 8px #0008}#brand{position:absolute;left:20px;top:16px;font-weight:1000;font-style:italic;letter-spacing:2px;font-size:clamp(17px,3vw,25px)}#brand span{color:var(--cyan)}#hint{font-size:10px;letter-spacing:2px;color:#d8eaf5;font-weight:700;margin-top:4px}#hud{position:absolute;top:16px;right:18px;display:flex;gap:9px} .panel{background:var(--panel);border:1px solid #ffffff2b;backdrop-filter:blur(12px);border-radius:12px;padding:9px 13px;min-width:82px} .lab{font-size:9px;letter-spacing:1.5px;color:#a8c4d5;font-weight:800}.val{font-size:clamp(20px,4vw,30px);font-weight:950;font-variant-numeric:tabular-nums;line-height:1.15}.unit{font-size:10px;color:#b6d3df}#progressWrap{position:absolute;left:50%;top:20px;transform:translateX(-50%);width:min(30vw,260px);text-align:center}#progress{height:5px;background:#001a2c55;border-radius:8px;overflow:hidden;margin-top:8px}#bar{height:100%;width:0;background:var(--cyan);box-shadow:0 0 12px var(--cyan)}#progressText{font-size:10px;letter-spacing:2px;font-weight:900}#bottom{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}button{font:inherit;color:white;background:rgba(8,15,27,.78);border:1px solid #ffffff42;border-radius:11px;padding:10px 15px;font-size:12px;font-weight:850;letter-spacing:.5px;backdrop-filter:blur(10px);cursor:pointer;touch-action:manipulation}button:active{transform:scale(.96)}button.primary{background:var(--cyan);color:#07151b;border-color:var(--cyan)}#overlay{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,#08131c55,#07101bcc);z-index:5;color:white;padding:22px}#overlay.hidden{display:none}.hero{width:min(560px,100%);text-align:center;padding:28px 22px;border:1px solid #ffffff30;background:#081523b8;border-radius:24px;box-shadow:0 25px 90px #0005;backdrop-filter:blur(15px)}.eyebrow{color:var(--cyan);font-weight:900;letter-spacing:4px;font-size:11px}.hero h1{font-size:clamp(38px,10vw,76px);line-height:.95;letter-spacing:-3px;margin:15px 0 12px;font-weight:1000;font-style:italic}.hero h1 em{color:var(--cyan);font-style:normal}.hero p{color:#c4d7e3;line-height:1.7;font-size:13px;max-width:400px;margin:0 auto 22px}.hero .primary{font-size:14px;padding:14px 30px;min-width:190px}.keys{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:18px;color:#bdd2df;font-size:10px}.keys span{border:1px solid #ffffff26;border-radius:6px;padding:5px 8px}#physicsDebug{position:fixed;left:12px;bottom:76px;z-index:4;max-width:min(340px,calc(100vw - 24px));padding:10px 12px;border:1px solid #8ff7ff55;border-radius:10px;background:#061521df;color:#ddfaff;font:11px/1.65 ui-monospace,SFMono-Regular,monospace;white-space:pre-wrap;pointer-events:none;backdrop-filter:blur(12px)}#physicsDebug.hidden{display:none}#debugToggle{font-size:11px;padding:10px 12px}#testSwitches{position:fixed;left:12px;top:104px;z-index:4;display:flex;flex-direction:column;align-items:stretch;gap:7px;width:156px;padding:10px;border:1px solid #8ff7ff55;border-radius:12px;background:#061521df;color:#ddfaff;backdrop-filter:blur(12px)}#testSwitches .switchTitle{font-size:10px;font-weight:900;letter-spacing:1px;color:#8ff7ff}#testSwitches button{font-size:11px;padding:9px 8px;text-align:left}#testSwitches button[aria-pressed="false"]{opacity:.72;border-color:#ffffff24;background:#17212c}#touch{position:fixed;inset:auto 0 78px;display:none;justify-content:space-between;padding:0 18px;pointer-events:none;z-index:3}.cluster{display:flex;gap:9px;align-items:end}.touchbtn{width:60px;height:60px;border-radius:18px;display:grid;place-items:center;font-size:22px;background:#06152188;border:1px solid #ffffff50;pointer-events:auto;user-select:none;-webkit-user-select:none;touch-action:none}.touchbtn.gas{height:78px;width:66px;background:#8ff7ffcc;color:#05151a;font-size:12px}.touchbtn small{font-size:9px;display:block}.touchbtn.active{background:#fff;color:#07151b}@media(pointer:coarse){#touch{display:flex}#bottom{bottom:8px}#hud{top:68px;right:10px;gap:5px}.panel{min-width:68px;padding:7px 9px}#progressWrap{top:20px}}@media(max-width:600px){#brand{left:12px;top:12px}#hint{letter-spacing:1px;font-size:8px}#progressWrap{width:29vw;top:18px}.hero{padding:26px 16px}.keys{display:none}}
+:root{color-scheme:dark;--cyan:#8ff7ff;--panel:rgba(9,15,26,.78)}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#8dc7e5;font-family:Inter,system-ui,-apple-system,"PingFang SC",sans-serif;touch-action:none}canvas{display:block;width:100%;height:100%;outline:0}#ui{position:fixed;inset:0;pointer-events:none;color:#fff;text-shadow:0 2px 8px #0008}#brand{position:absolute;left:20px;top:16px;font-weight:1000;font-style:italic;letter-spacing:2px;font-size:clamp(17px,3vw,25px)}#brand span{color:var(--cyan)}#hint{font-size:10px;letter-spacing:2px;color:#d8eaf5;font-weight:700;margin-top:4px}#hud{position:absolute;top:16px;right:18px;display:flex;gap:9px} .panel{background:var(--panel);border:1px solid #ffffff2b;backdrop-filter:blur(12px);border-radius:12px;padding:9px 13px;min-width:82px} .lab{font-size:9px;letter-spacing:1.5px;color:#a8c4d5;font-weight:800}.val{font-size:clamp(20px,4vw,30px);font-weight:950;font-variant-numeric:tabular-nums;line-height:1.15}.unit{font-size:10px;color:#b6d3df}#progressWrap{position:absolute;left:50%;top:20px;transform:translateX(-50%);width:min(30vw,260px);text-align:center}#progress{height:5px;background:#001a2c55;border-radius:8px;overflow:hidden;margin-top:8px}#bar{height:100%;width:0;background:var(--cyan);box-shadow:0 0 12px var(--cyan)}#progressText{font-size:10px;letter-spacing:2px;font-weight:900}#bottom{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}button{font:inherit;color:white;background:rgba(8,15,27,.78);border:1px solid #ffffff42;border-radius:11px;padding:10px 15px;font-size:12px;font-weight:850;letter-spacing:.5px;backdrop-filter:blur(10px);cursor:pointer;touch-action:manipulation}button:active{transform:scale(.96)}button.primary{background:var(--cyan);color:#07151b;border-color:var(--cyan)}#overlay{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,#08131c55,#07101bcc);z-index:5;color:white;padding:22px}#overlay.hidden{display:none}.hero{width:min(560px,100%);text-align:center;padding:28px 22px;border:1px solid #ffffff30;background:#081523b8;border-radius:24px;box-shadow:0 25px 90px #0005;backdrop-filter:blur(15px)}.eyebrow{color:var(--cyan);font-weight:900;letter-spacing:4px;font-size:11px}.hero h1{font-size:clamp(38px,10vw,76px);line-height:.95;letter-spacing:-3px;margin:15px 0 12px;font-weight:1000;font-style:italic}.hero h1 em{color:var(--cyan);font-style:normal}.hero p{color:#c4d7e3;line-height:1.7;font-size:13px;max-width:400px;margin:0 auto 22px}.hero .primary{font-size:14px;padding:14px 30px;min-width:190px}.keys{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:18px;color:#bdd2df;font-size:10px}.keys span{border:1px solid #ffffff26;border-radius:6px;padding:5px 8px}#physicsDebug{position:fixed;left:12px;bottom:76px;z-index:4;max-width:min(340px,calc(100vw - 24px));padding:10px 12px;border:1px solid #8ff7ff55;border-radius:10px;background:#061521df;color:#ddfaff;font:11px/1.65 ui-monospace,SFMono-Regular,monospace;white-space:pre-wrap;pointer-events:none;backdrop-filter:blur(12px)}#physicsDebug.hidden{display:none}#debugToggle{font-size:11px;padding:10px 12px}#touch{position:fixed;inset:auto 0 78px;display:none;justify-content:space-between;padding:0 18px;pointer-events:none;z-index:3}.cluster{display:flex;gap:9px;align-items:end}.touchbtn{width:60px;height:60px;border-radius:18px;display:grid;place-items:center;font-size:22px;background:#06152188;border:1px solid #ffffff50;pointer-events:auto;user-select:none;-webkit-user-select:none;touch-action:none}.touchbtn.gas{height:78px;width:66px;background:#8ff7ffcc;color:#05151a;font-size:12px}.touchbtn small{font-size:9px;display:block}.touchbtn.active{background:#fff;color:#07151b}@media(pointer:coarse){#touch{display:flex}#bottom{bottom:8px}#hud{top:68px;right:10px;gap:5px}.panel{min-width:68px;padding:7px 9px}#progressWrap{top:20px}}@media(max-width:600px){#brand{left:12px;top:12px}#hint{letter-spacing:1px;font-size:8px}#progressWrap{width:29vw;top:18px}.hero{padding:26px 16px}.keys{display:none}}
 </style></head><body>
 <div id="brand">POLY<span>RUSH</span><div id="hint">LOW-POLY CIRCUIT · TIME ATTACK</div></div>
 <div id="progressWrap"><div id="progressText">LAP 01 / 03</div><div id="progress"><div id="bar"></div></div></div>
 <div id="hud"><div class="panel"><div class="lab">SPEED</div><div class="val" id="speed">000</div><div class="unit">KM/H</div></div><div class="panel"><div class="lab">TIME</div><div class="val" id="time">00:00.00</div><div class="unit">BEST <span id="best">--:--.--</span></div></div></div>
-<div id="testSwitches"><div class="switchTitle">物理测试开关</div><button id="airWallToggle" aria-pressed="true">空气墙：开</button><button id="groundToggle" aria-pressed="true">地面实体：开</button></div>
 <div id="bottom"><button id="restart">↻ 重置</button><button id="camera">相机：追尾</button><button id="pause">Ⅱ 暂停</button><button id="debugToggle">物理调试</button><button id="exportTelemetry">导出驾驶数据</button></div>
-<div id="physicsDebug" class="hidden">PlayCar Physics Engine 1.0.4 · Air Walls
+<div id="physicsDebug" class="hidden">PlayCar Physics Engine 1.0.5 · Solid Track
 速度：<span id="debugSpeed">0.0</span> u/s
 垂直速度：<span id="debugVertical">0.0</span>
 轮胎状态：<span id="debugGrip">AIR</span>
@@ -23,7 +22,7 @@
 <div id="touch"><div class="cluster"><div class="touchbtn" data-key="left">◀</div><div class="touchbtn" data-key="right">▶</div></div><div class="cluster"><div class="touchbtn" data-key="brake">刹车</div><div class="touchbtn gas" data-key="gas">加速<small>HOLD</small></div></div></div>
 <div id="overlay"><div class="hero"><div class="eyebrow">LONGER TRACK · POLY-STYLE AIR WALLS</div><h1>POLY<em>RUSH</em></h1><p>加宽加长的低多边形赛道、连续空气墙、坡道与垂直回环。冲出弯道也能被护墙挡住，支持键盘和 iPad 触屏操作。</p><button class="primary" id="start">开始比赛　→</button><div class="keys"><span>W / ↑ 加速</span><span>S / ↓ 刹车</span><span>A D / ← → 转向</span><span>空格 手刹</span></div></div></div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script src="./physics/playcar-physics-engine.js?v=1.0.4"></script>
+<script src="./physics/playcar-physics-engine.js?v=1.0.5"></script>
 <script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
@@ -86,35 +85,8 @@ const frameUps=samples.map((p,i)=>{
 const sideVectors=tangents.map((t,i)=>new THREE.Vector3().crossVectors(t,frameUps[i]).normalize());
 function roadMesh(offset,width,material,yOffset=0){const verts=[],uv=[],idx=[];for(let i=0;i<=N;i++){const j=i%N,p=samples[j],side=sideVectors[j],up=frameUps[j];const a=p.clone().addScaledVector(side,offset-width/2).addScaledVector(up,yOffset);const b=p.clone().addScaledVector(side,offset+width/2).addScaledVector(up,yOffset);verts.push(a.x,a.y,a.z,b.x,b.y,b.z);uv.push(0,i/N*80,1,i/N*80);if(i<N){const k=i*2;idx.push(k,k+1,k+2,k+1,k+3,k+2)}}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();const m=new THREE.Mesh(g,material);m.receiveShadow=true;m.castShadow=false;scene.add(m);return m}
 const TRACK_WIDTH=19;
-const WALL_HEIGHT=4.6;
 const trackSurfaceMesh=roadMesh(0,TRACK_WIDTH,roadMat,.1);
 roadMesh(-TRACK_WIDTH/2+.24,.48,edgeMat,.17);roadMesh(TRACK_WIDTH/2-.24,.48,edgeMat,.17);
-// Continuous low-poly safety walls ("air walls") run along both edges.
-// Their actual triangle meshes are registered as physics colliders, not decoration only.
-const wallMat=new THREE.MeshStandardMaterial({color:0x20cde0,roughness:.38,metalness:.12,transparent:true,opacity:.72,side:THREE.DoubleSide});
-const wallCapMat=mat(0xf4f8ff,.42);
-const airWallMeshes=[],airWallCapMeshes=[];
-function makeAirWall(sideSign){
-  const verts=[],indices=[];
-  for(let i=0;i<=N;i++){
-    const j=i%N,p=samples[j],side=sideVectors[j],up=frameUps[j];
-    const base=p.clone().addScaledVector(side,sideSign*(TRACK_WIDTH/2-.12)).addScaledVector(up,.2);
-    const top=base.clone().addScaledVector(up,WALL_HEIGHT);
-    verts.push(base.x,base.y,base.z,top.x,top.y,top.z);
-    if(i<N){const k=i*2;indices.push(k,k+1,k+2,k+1,k+3,k+2)}
-  }
-  const geometry=new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));
-  geometry.setIndex(indices);geometry.computeVertexNormals();
-  const wall=new THREE.Mesh(geometry,wallMat);
-  wall.userData.physicsCollider=true;wall.userData.physicsColliderType='airWall';wall.receiveShadow=true;wall.castShadow=true;
-  airWallMeshes.push(wall);scene.add(wall);
-  // A bright continuous cap makes the safety barrier readable at speed.
-  const cap=roadMesh(sideSign*(TRACK_WIDTH/2-.12),.22,wallCapMat,WALL_HEIGHT+.2);
-  cap.material=wallCapMat;airWallCapMeshes.push(cap);
-  return wall;
-}
-makeAirWall(-1);makeAirWall(1);
 const dashMat=mat(0xf8f6dd);for(let i=0;i<N;i+=8){const p=samples[i],s=sideVectors[i];const g=new THREE.BoxGeometry(.16,.045,1.6);const dash=new THREE.Mesh(g,dashMat);dash.position.set(p.x,p.y+.25,p.z);dash.rotation.y=Math.atan2(tangents[i].x,tangents[i].z);scene.add(dash)}
 // Decorative low-poly hills, trees and trackside markers
 for(let i=0;i<220;i++){const j=(i*37)%N,p=samples[j],side=sideVectors[j],sgn=i%2?1:-1,dist=18+(i*13)%45;const pos=p.clone().addScaledVector(side,sgn*dist);const h=5+(i*17)%15;const tree=new THREE.Group();const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.45,.7,h*.45,5),mat(0x76533b));trunk.position.y=h*.22;trunk.userData.physicsCollider=true;tree.add(trunk);const crown=new THREE.Mesh(new THREE.ConeGeometry(2.5+(i%3),h*.7,5),mat(i%3===0?0x2f744b:0x438b55));crown.position.y=h*.72;tree.add(crown);tree.position.set(pos.x,p.y-1,pos.z);tree.rotation.y=i*2.4;scene.add(tree)}
@@ -138,24 +110,19 @@ let trackDistance = 0;
 const EngineAPI=window.PlayCarPhysicsEngine;
 const surfaceTriangles=EngineAPI.TriangleMesh.fromBufferGeometry(trackSurfaceMesh.geometry,null,8);
 scene.updateMatrixWorld(true);
-// The road is a solid collision surface for the car body, not just a wheel-probe query.
-// Test side barriers before the road surface. The collision solver resolves the
-// first overlap per iteration; putting the road first can otherwise starve wall
-// checks because the car body commonly overlaps the road while driving.
-const nonWallColliderMeshes=[];
-const airWallColliderMeshes=[];
+// Keep the road mesh in both the wheel-support query and the solid-body collider list.
+// No air-wall meshes are created or registered: the car should be supported by the road,
+// not blocked by invisible or overhead barrier geometry.
+const staticColliderMeshes=[];
 scene.traverse(obj=>{
   if(obj.isMesh&&obj.userData&&obj.userData.physicsCollider&&obj.geometry){
-    const collider=EngineAPI.TriangleMesh.fromBufferGeometry(obj.geometry,obj.matrixWorld.elements,4);
-    if(obj.userData.physicsColliderType==='airWall')airWallColliderMeshes.push(collider);
-    else nonWallColliderMeshes.push(collider);
+    staticColliderMeshes.push(EngineAPI.TriangleMesh.fromBufferGeometry(obj.geometry,obj.matrixWorld.elements,4));
   }
 });
-let airWallsEnabled=true;
-let groundCollisionEnabled=true;
+staticColliderMeshes.push(surfaceTriangles);
 const physics=new EngineAPI.PlayCarPhysicsEngine({
   surfaceMesh:surfaceTriangles,
-  colliderMeshes:[...airWallColliderMeshes,...nonWallColliderMeshes,surfaceTriangles],
+  colliderMeshes:staticColliderMeshes,
   frameAt:hit=>{
     const i=Math.floor(hit.triangleIndex/2)%N,t=tangents[i];
     return {index:i,tangent:{x:t.x,y:t.y,z:t.z}};
@@ -166,23 +133,6 @@ const physics=new EngineAPI.PlayCarPhysicsEngine({
   physics.addCheckpoint({id:['start','checkpoint-1','checkpoint-2'][n],
     position:{x:p.x,y:p.y+.12,z:p.z},forward:{x:t.x,y:t.y,z:t.z},radius:TRACK_WIDTH});
 });
-function syncPhysicsToggles(){
-  physics.surfaceMesh=groundCollisionEnabled?surfaceTriangles:null;
-  physics.colliderMeshes=[
-    ...(airWallsEnabled?airWallColliderMeshes:[]),
-    ...nonWallColliderMeshes,
-    ...(groundCollisionEnabled?[surfaceTriangles]:[])
-  ];
-  airWallMeshes.forEach(mesh=>mesh.visible=airWallsEnabled);
-  airWallCapMeshes.forEach(mesh=>mesh.visible=airWallsEnabled);
-  $('airWallToggle').textContent='空气墙：'+(airWallsEnabled?'开':'关');
-  $('airWallToggle').setAttribute('aria-pressed',String(airWallsEnabled));
-  $('groundToggle').textContent='地面实体：'+(groundCollisionEnabled?'开':'关');
-  $('groundToggle').setAttribute('aria-pressed',String(groundCollisionEnabled));
-}
-$('airWallToggle').addEventListener('click',()=>{airWallsEnabled=!airWallsEnabled;syncPhysicsToggles()});
-$('groundToggle').addEventListener('click',()=>{groundCollisionEnabled=!groundCollisionEnabled;syncPhysicsToggles()});
-syncPhysicsToggles();
 function update(dt){
   if(running&&!paused){
     physics.advance(dt,{left:keys.left,right:keys.right,throttle:keys.gas?1:0,brake:keys.brake?1:0,handbrake:keys.hand?1:0});
