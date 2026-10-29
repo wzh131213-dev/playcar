@@ -1,4 +1,4 @@
-/* PlayCar Physics Engine 1.3.0
+/* PlayCar Physics Engine 1.4.0
  * Original, dependency-free vehicle dynamics and triangle collision solver.
  * Units are game-world units; callers own rendering and track geometry.
  * No PolyTrack code, WASM, assets, or formulas are used.
@@ -187,7 +187,7 @@
     gravity:24,maxSpeed:78,engineAcceleration:28,brakeAcceleration:56,
     rollingResistance:.22,aerodynamicDrag:.0026,windInfluence:.16,
     wheelbase:2.7,maxSteerAngle:.48,highSpeedSteerScale:.48,
-    tireGrip:2.4,handbrakeGrip:.5,handbrakeYawMultiplier:1.55,
+    tireGrip:3.6,handbrakeGrip:3.6,handbrakeYawMultiplier:1.55,
     reverseAcceleration:9,downforceCoefficient:.0014,maxDownforce:10,
     airYawRate:.62,airPitchRate:.55,airRollRate:.82,
     wheelbaseHalf:1.35,trackHalfWidth:.78,wheelProbeY:.07,
