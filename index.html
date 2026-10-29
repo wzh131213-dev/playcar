@@ -136,12 +136,16 @@ const EngineAPI=window.PlayCarPhysicsEngine;
 const surfaceTriangles=EngineAPI.TriangleMesh.fromBufferGeometry(trackSurfaceMesh.geometry,null,8);
 scene.updateMatrixWorld(true);
 // The road is a solid collision surface for the car body, not just a wheel-probe query.
-const staticColliderMeshes=[surfaceTriangles];
+// Test side barriers before the road surface. The collision solver resolves the
+// first overlap per iteration; putting the road first can otherwise starve wall
+// checks because the car body commonly overlaps the road while driving.
+const staticColliderMeshes=[];
 scene.traverse(obj=>{
   if(obj.isMesh&&obj.userData&&obj.userData.physicsCollider&&obj.geometry){
     staticColliderMeshes.push(EngineAPI.TriangleMesh.fromBufferGeometry(obj.geometry,obj.matrixWorld.elements,4));
   }
 });
+staticColliderMeshes.push(surfaceTriangles);
 const physics=new EngineAPI.PlayCarPhysicsEngine({
   surfaceMesh:surfaceTriangles,
   colliderMeshes:staticColliderMeshes,
