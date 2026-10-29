@@ -14,9 +14,9 @@ test('root page is a physics test page, not the racing game', () => {
 
 test('physics test page exposes live controls and automated checks', () => {
   for (const id of ['run-tests', 'reset-car', 'throttle', 'brake', 'steer-left', 'steer-right', 'pitch-test', 'test-results']) {
-    assert.match(html, new RegExp('id=["\\']' + id + '["\\']'), 'missing control: ' + id);
+    assert.match(html, new RegExp("id=[\\\"']" + id + "[\\\"']"), 'missing control: ' + id);
   }
-  assert.match(html, /new PlayCarPhysicsEngine/);
+  assert.match(html, /new Engine/);
   assert.match(html, /airPitchStability|pitch-test/);
   assert.match(html, /test-results/);
 });
