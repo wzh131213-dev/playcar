@@ -184,9 +184,9 @@ test('weather setter clamps wetness and wind to safe finite ranges',()=>{
   assert.equal(clean.wetness,0);assert.deepEqual(clean.wind,{x:0,z:0});
 });
 test('crosswind changes vehicle velocity in the wind direction',()=>{
-  const calm=makeEngine(),windy=makeEngine();calm.state.velocity={x:0,y:0,z:-12};windy.state.velocity={x:0,y:0,z:-12};
+  const calm=makeEngine(),windy=makeEngine();calm.state.position.y=15;windy.state.position.y=15;calm.state.velocity={x:0,y:0,z:-12};windy.state.velocity={x:0,y:0,z:-12};
   windy.setWeather({wind:{x:10,z:0},wetness:0});runFor(calm,.8,{},60);runFor(windy,.8,{});
-  assert.ok(windy.state.velocity.x>calm.state.velocity.x+.5,'crosswind should apply measurable lateral force');finiteState(windy);
+  assert.ok(windy.state.velocity.x>calm.state.velocity.x+.5,'crosswind should apply measurable lateral force while airborne');finiteState(windy);
 });
 test('wet road reduces tire grip and increases retained side slip',()=>{
   const dry=makeEngine(),wet=makeEngine();dry.state.velocity={x:8,y:0,z:-12};wet.state.velocity={x:8,y:0,z:-12};wet.setWeather({wetness:1});
