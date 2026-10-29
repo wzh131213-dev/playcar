@@ -238,3 +238,14 @@ test('speed-dependent downforce increases available braking grip at speed',()=>{
   const low=initialDeceleration(10), high=initialDeceleration(45);
   assert.ok(high>low+1.5,'higher speed should add downforce and increase tire load');
 });
+
+test('game HTML requests the current physics-engine cache version',()=>{
+  const fs=require('node:fs');
+  const path=require('node:path');
+  const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+  const match=html.match(/playcar-physics-engine\\.js\\?v=([^"' ]+)/);
+  const api=require('../physics/playcar-physics-engine.js');
+  assert.ok(match,'game HTML must include a versioned physics-engine script URL');
+  assert.equal(api.version,'1.2.0','behavior changes must bump the engine version');
+  assert.equal(match[1],api.version,'HTML cache-bust version must match the engine version');
+});
