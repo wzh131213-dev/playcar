@@ -1,4 +1,4 @@
-/* PlayCar Physics Engine 1.0.8
+/* PlayCar Physics Engine 1.0.9
  * Original, dependency-free vehicle dynamics and triangle collision solver.
  * Units are game-world units; callers own rendering and track geometry.
  * No PolyTrack code, WASM, assets, or formulas are used.
@@ -201,7 +201,7 @@
     constructor(options={}){
       this.config=Object.assign({},DEFAULTS,options.config||{});
       this.config.bodyHalfExtents=Object.assign({},DEFAULTS.bodyHalfExtents,(options.config||{}).bodyHalfExtents||{});
-      this.surfaceMesh=options.surfaceMesh||null;
+      this.surfaceMesh=options.surfaceMesh||null;\n      this.groundPlaneY=Number.isFinite(options.groundPlaneY)?options.groundPlaneY:null;
       this.colliderMeshes=options.colliderMeshes||[];
       this.frameAt=typeof options.frameAt==='function'?options.frameAt:null;
       this.accumulator=0;this.tick=0;this.droppedTime=0;this.lastStepMs=0;this.totalStepMs=0;
@@ -260,6 +260,22 @@
         if(hit)hits.push({...hit,probe});
       }
       return hits;
+    }
+    _resolveGroundPlane(){
+      const c=this.config,s=this.state;
+      if(!Number.isFinite(this.groundPlaneY))return false;
+      const half=c.bodyHalfExtents,q=s.orientation;
+      const center=V.add(s.position,Q.rotate(q,V.make(0,c.bodyCenterY,0)));
+      const axisX=Q.rotate(q,V.make(1,0,0)),axisY=Q.rotate(q,V.make(0,1,0)),axisZ=Q.rotate(q,V.make(0,0,1));
+      const verticalRadius=Math.abs(axisX.y)*half.x+Math.abs(axisY.y)*half.y+Math.abs(axisZ.y)*half.z;
+      const bottom=center.y-verticalRadius;
+      if(bottom<this.groundPlaneY+c.surfaceSeparation){
+        s.position.y+=this.groundPlaneY+c.surfaceSeparation-bottom;
+        if(s.velocity.y<0)s.velocity.y=0;
+        if(s.collisionState==='none')s.collisionState='ground';
+        return true;
+      }
+      return bottom<=this.groundPlaneY+c.surfaceSeparation*2;
     }
     _resolveSurfacePenetration(){
       const c=this.config,s=this.state;
@@ -400,6 +416,7 @@
       this._resolveSurfacePenetration();
       this._applyStaticCollisions();
       this._resolveSurfacePenetration();
+      const onGroundPlane=this._resolveGroundPlane();
       const contacts=this._wheelContacts().filter(h=>h.distance<=contactThreshold || h.signedDistance<c.suspensionRestLength);
       if(contacts.length>=2){
         let nsum=V.make(0,0,0),correction=V.make(0,0,0),correctionCount=0;
@@ -438,6 +455,11 @@
       }else{
         s.grounded=false;s.gripState='AIR';
       }
+      if(onGroundPlane){
+        s.grounded=true;s.contactNormal=V.make(0,1,0);s.gripState='GRIP';
+        s.velocity.y=Math.max(0,s.velocity.y);
+        s.velocity.x*=Math.exp(-1.8*dt);s.velocity.z*=Math.exp(-1.8*dt);
+      }
       this._updateCheckpoints(this.previousState.position,s.position);
       s.tick=++this.tick;
       const t1=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
@@ -467,7 +489,7 @@
     }
   }
 
-  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.0.8'};
+  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.0.9'};
   root.PlayCarPhysicsEngine=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
