@@ -397,7 +397,9 @@
       const velocityMagnitude=V.len(s.velocity);
       if(velocityMagnitude>c.maxSpeed*1.35)s.velocity=V.mul(s.velocity,(c.maxSpeed*1.35)/velocityMagnitude);
       s.position=V.add(s.position,V.mul(s.velocity,dt));
-      this._resolveSurfacePenetration();\n      this._applyStaticCollisions();\n      this._resolveSurfacePenetration();
+      this._resolveSurfacePenetration();
+      this._applyStaticCollisions();
+      this._resolveSurfacePenetration();
       const contacts=this._wheelContacts().filter(h=>h.distance<=contactThreshold || h.signedDistance<c.suspensionRestLength);
       if(contacts.length>=2){
         let nsum=V.make(0,0,0),correction=V.make(0,0,0),correctionCount=0;
