@@ -320,15 +320,34 @@
       const postBrakeSpeed=V.len(s.velocity);
       s.velocity=V.mul(s.velocity,Math.exp(-(c.rollingResistance+c.aerodynamicDrag*postBrakeSpeed)*dt));
       if(wasGrounded){
-        const grip=handbrake>0?c.handbrakeGrip:c.tireGrip;
+        // Original simcade tire model (not copied from PolyTrack): a simplified
+        // Pacejka-style slip-angle curve plus a combined-grip friction ellipse.
+        // Tire forces rise progressively, saturate at mu * normal load, then
+        // fall away after peak slip so the car can slide instead of snapping.
+        const baseMu=handbrake>0?c.handbrakeGrip:c.tireGrip;
         const sideSpeed=V.dot(s.velocity,right);
-        const sideAccel=V.clamp(-sideSpeed*grip,-grip*c.gravity,grip*c.gravity);
+        const forwardSpeed=V.dot(s.velocity,fwd);
+        const slipAngle=Math.atan2(sideSpeed,Math.max(1,Math.abs(forwardSpeed)));
+        const tireB=7.2,tireC=1.3,tireE=.88;
+        const bx=tireB*slipAngle;
+        const pacejkaShape=bx-tireE*(bx-Math.atan(bx));
+        const lateralDemand=-baseMu*c.gravity*Math.sin(tireC*Math.atan(pacejkaShape));
+        // Longitudinal acceleration consumes the same tire grip budget as cornering.
+        const longitudinalDemand=Math.abs(throttle*c.engineAcceleration-brake*c.brakeAcceleration);
+        const longitudinalCapacity=Math.max(.001,baseMu*c.gravity);
+        const longitudinalUse=V.clamp(longitudinalDemand/longitudinalCapacity,0,1);
+        const lateralCapacity=baseMu*c.gravity*Math.sqrt(Math.max(0,1-longitudinalUse*longitudinalUse));
+        const sideAccel=V.clamp(lateralDemand,-lateralCapacity,lateralCapacity);
         s.velocity=V.add(s.velocity,V.mul(right,sideAccel*dt));
+        // Rolling tire drag and lateral scrub: more slip costs more speed, while
+        // handbrake reduces rear grip to permit a controllable low-poly drift.
+        const scrub=V.clamp(Math.abs(sideSpeed)*.012*(handbrake>0?1.35:1),0,.24);
+        if(scrub>0)s.velocity=V.sub(s.velocity,V.mul(fwd,Math.sign(forwardSpeed)*Math.min(Math.abs(forwardSpeed),scrub*dt*10)));
         const speedForSteer=Math.max(1,Math.abs(V.dot(s.velocity,fwd)));
         const steerAngle=c.maxSteerAngle*(1-speedRatio*(1-c.highSpeedSteerScale))*steer;
         let yawRate=-V.dot(s.velocity,fwd)/c.wheelbase*Math.tan(steerAngle); // Forward is -Z: invert yaw so left input turns left and right input turns right.
         if(handbrake>0)yawRate*=c.handbrakeYawMultiplier;
-        const maxYaw=Math.max(.08,(handbrake>0?c.handbrakeGrip:c.tireGrip)*c.gravity/speedForSteer);
+        const maxYaw=Math.max(.08,baseMu*c.gravity/speedForSteer);
         yawRate=V.clamp(yawRate,-maxYaw,maxYaw);
         s.orientation=Q.normalize(Q.mul(Q.axis(normal,yawRate*dt),s.orientation));
       }else{
