@@ -345,3 +345,28 @@ test('telemetry reports speed, slip angle, contact and stable state without expo
   data.position.x=123456;
   assert.notEqual(e.state.position.x,123456,'telemetry position must be copied');
 });
+
+
+test('renderer-neutral pose adapter syncs engine state to common 3D objects',()=>{
+  const {createRenderAdapter}=require('../physics/playcar-physics-engine.js');
+  const e=makeEngine();
+  const object={position:{x:0,y:0,z:0,set(x,y,z){this.x=x;this.y=y;this.z=z;}},
+    quaternion:{x:0,y:0,z:0,w:1,set(x,y,z,w){this.x=x;this.y=y;this.z=z;this.w=w;}}};
+  const adapter=createRenderAdapter(e,object);
+  const result=adapter.update(1/60,{throttle:1,steer:.2});
+  assert.ok(result.pose&&result.telemetry);
+  assert.equal(object.position.x,result.pose.position.x);
+  assert.equal(object.quaternion.w,result.pose.orientation.w);
+  assert.ok(Number.isFinite(object.position.z));
+  adapter.sync();
+  finiteState(e);
+});
+
+test('renderer-neutral adapter accepts plain mutable vectors without set methods',()=>{
+  const {createRenderAdapter}=require('../physics/playcar-physics-engine.js');
+  const e=makeEngine();
+  const object={position:{x:99,y:99,z:99},quaternion:{x:0,y:0,z:0,w:0}};
+  createRenderAdapter(e,object).sync();
+  assert.equal(object.position.x,e.interpolatedState().position.x);
+  assert.equal(object.quaternion.w,e.interpolatedState().orientation.w);
+});
