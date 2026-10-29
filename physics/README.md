@@ -152,6 +152,28 @@ const terrain = TriangleMesh.fromHeightfield({
 
 For moving roads or destructible geometry, rebuild/update the corresponding mesh deliberately; this engine does not automatically track renderer transforms or deforming vertices. Avoid passing the same road mesh as a wall collider unless the host intends it to behave as a solid obstacle.
 
+## Renderer-neutral adapter
+
+If a 3D engine's vehicle object exposes mutable `position` and `quaternion` objects (for example Three.js objects), use the adapter to keep pose synchronization out of your game loop:
+
+```js
+const { PlayCarPhysicsEngine, TriangleMesh, createRenderAdapter } =
+  window.PlayCarPhysicsEngine;
+const carPhysics = new PlayCarPhysicsEngine({ surfaceMesh: roadPhysicsMesh });
+const carAdapter = createRenderAdapter(carPhysics, carObject);
+
+function frame(dt) {
+  carAdapter.update(dt, {
+    throttle: input.accelerate,
+    brake: input.brake,
+    steer: input.steer
+  });
+  // carObject.position/quaternion are now synchronized to the interpolated pose.
+}
+```
+
+The adapter supports objects with `.set(x,y,z)` / `.set(x,y,z,w)` methods or plain mutable `x/y/z/w` properties. It does not create a renderer, camera, input system, or asset loader. Keep the host game's object origin and the engine's vehicle reference point aligned; adjust mesh offsets in the host renderer rather than silently changing physics coordinates.
+
 ## State, forces, and telemetry
 
 - `getState()` returns a copy of the simulation state so external UI code cannot mutate the live position accidentally.
