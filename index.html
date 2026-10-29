@@ -175,11 +175,6 @@ function update(dt){
   if(camMode===0){desired=p.clone().addScaledVector(forward,-11-speed*.035);desired.y+=5.2+speed*.015;look=p.clone().addScaledVector(forward,7);look.y+=1.2}
   else{desired=p.clone().add(new THREE.Vector3(0,22,0));look=p.clone()}
   camera.position.lerp(desired,1-Math.exp(-dt*4.2));camera.lookAt(look);
-  const d=physics.debugSnapshot();
-  $('debugSpeed').textContent=d.speed.toFixed(2);$('debugVertical').textContent=d.verticalSpeed.toFixed(2);
-  $('debugGrip').textContent=d.grip;$('debugGrounded').textContent=d.grounded?'是':'否';
-  $('debugCollision').textContent=d.collision;$('debugMs').textContent=d.physicsMs.toFixed(3);
-  $('debugTick').textContent=String(d.tick);$('debugEvents').textContent=String(d.collisionEvents);$('debugDropped').textContent=d.droppedTime.toFixed(3);
 }
 function V3length(v){return Math.sqrt(v.x*v.x+v.y*v.y+v.z*v.z)}
 function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-last)/1000,.04);last=now;update(dt);renderer.render(scene,camera)}requestAnimationFrame(animate);
