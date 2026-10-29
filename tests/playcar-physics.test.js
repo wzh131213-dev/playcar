@@ -58,6 +58,17 @@ test('fixed-step simulation is near-identical at 30 and 120 render frames per se
   assert.ok(V.distance(a.state.position,b.state.position)<1e-4,'position should depend on fixed steps, not render cadence');
   assert.ok(V.distance(a.state.velocity,b.state.velocity)<1e-4,'velocity should depend on fixed steps, not render cadence');
 });
+test('airborne nose-down pitch self-corrects toward level without player input',()=>{
+  const e=makeEngine({surfaceMesh:null,position:{x:0,y:30,z:0}});
+  e.state.orientation=Q.axis(V.make(1,0,0),-.55);
+  const forwardBefore=Q.rotate(e.state.orientation,V.make(0,0,-1));
+  const pitchBefore=Math.abs(Math.asin(V.clamp(forwardBefore.y,-1,1)));
+  runFor(e,1,{},60);
+  const forwardAfter=Q.rotate(e.state.orientation,V.make(0,0,-1));
+  const pitchAfter=Math.abs(Math.asin(V.clamp(forwardAfter.y,-1,1)));
+  assert.ok(pitchAfter<pitchBefore-.1,'airborne nose-down pitch should recover toward level');
+  finiteState(e);
+});
 test('leaving the end of a finite track produces airborne gravity and falling vertical speed',()=>{
   const surface=rectangleSurface({xMin:-10,xMax:10,zMin:-5,zMax:25});
   const e=new Engine({surfaceMesh:surface,position:{x:0,y:-.03,z:0}});
