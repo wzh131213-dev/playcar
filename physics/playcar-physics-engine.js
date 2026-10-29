@@ -622,7 +622,36 @@
     }
   }
 
-  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,defaults:{...DEFAULTS,bodyHalfExtents:{...DEFAULTS.bodyHalfExtents}},presets:Object.fromEntries(Object.entries(PRESETS).map(([name,config])=>[name,{...config}])),version:'1.6.0'};
+  function createRenderAdapter(engine,renderObject){
+    if(!engine||typeof engine.interpolatedState!=='function'||typeof engine.update!=='function')
+      throw new TypeError('createRenderAdapter: expected a PlayCarPhysicsEngine-compatible instance');
+    if(!renderObject||typeof renderObject!=='object')
+      throw new TypeError('createRenderAdapter: expected a mutable render object');
+    const write=(target,source,keys)=>{
+      if(!target)return;
+      if(typeof target.set==='function')target.set(...keys.map(key=>source[key]));
+      else for(const key of keys)target[key]=source[key];
+    };
+    const sync=()=>{
+      const pose=engine.interpolatedState();
+      write(renderObject.position,pose.position,['x','y','z']);
+      write(renderObject.quaternion,pose.orientation,['x','y','z','w']);
+      return pose;
+    };
+    return {
+      engine,
+      sync,
+      update(deltaSeconds,input){
+        const step=engine.update(deltaSeconds,input),pose=sync();
+        return {step,pose,telemetry:engine.getTelemetry()};
+      },
+      reset(position,yaw=0,up=V.make(0,1,0)){
+        engine.reset(position,yaw,up);return sync();
+      }
+    };
+  }
+
+  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,createRenderAdapter,defaults:{...DEFAULTS,bodyHalfExtents:{...DEFAULTS.bodyHalfExtents}},presets:Object.fromEntries(Object.entries(PRESETS).map(([name,config])=>[name,{...config}])),version:'1.6.0'};
   root.PlayCarPhysicsEngine=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
