@@ -212,8 +212,11 @@ test('grounded braking is limited by tire friction instead of raw brake strength
   const forward=Q.rotate(e.state.orientation,{x:0,y:0,z:-1});
   const after=V.dot(e.state.velocity,forward);
   const deceleration=(before-after)/(1/120);
-  assert.ok(deceleration < e.config.tireGrip*e.config.gravity+3,
-    'grounded braking deceleration should stay near the available tire-friction limit');
+  const nonTireDrag=(e.config.rollingResistance+e.config.aerodynamicDrag*before)*before;
+  const load=e.config.gravity+Math.min(e.config.maxDownforce,before*before*e.config.downforceCoefficient);
+  const tireOnlyDeceleration=deceleration-nonTireDrag;
+  assert.ok(tireOnlyDeceleration <= e.config.tireGrip*load+1,
+    'tire braking force should respect grip after accounting for aerodynamic and rolling drag');
   finiteState(e);
 });
 test('holding brake from rest engages reverse like an arcade racer',()=>{
