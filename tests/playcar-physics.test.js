@@ -249,6 +249,13 @@ test('game HTML requests the current physics-engine cache version',()=>{
     'HTML cache-bust version must match the engine version');
 });
 
+test('tire grip is increased by 50 percent and handbrake grip matches normal grip',()=>{
+  const engine=makeEngine();
+  assert.equal(engine.config.tireGrip,3.6,'tire grip should be 50% above the previous 2.4 baseline');
+  assert.equal(engine.config.handbrakeGrip,engine.config.tireGrip,
+    'handbrake grip should equal normal tire grip');
+});
+
 test('default tire grip is stronger and reduces side slip faster than the old floaty setup',()=>{
   const standard=makeEngine();
   const oldGrip=makeEngine({config:{tireGrip:1.65}});
