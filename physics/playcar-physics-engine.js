@@ -1,4 +1,4 @@
-/* PlayCar Physics Engine 1.0.7
+/* PlayCar Physics Engine 1.0.8
  * Original, dependency-free vehicle dynamics and triangle collision solver.
  * Units are game-world units; callers own rendering and track geometry.
  * No PolyTrack code, WASM, assets, or formulas are used.
@@ -191,7 +191,7 @@
     airYawRate:.62,airPitchRate:.55,airRollRate:.82,
     wheelbaseHalf:1.35,trackHalfWidth:.78,wheelProbeY:.07,
     suspensionRestLength:.09,suspensionReach:.9,contactPositionGain:1,
-    collisionRestitution:.16,collisionFriction:.42,
+    collisionRestitution:.16,collisionFriction:.42,\n    surfaceCollisionReach:.9,surfaceSeparation:.012,surfaceCollisionRestitution:.02,maxSurfaceCollisionIterations:4,
     bodyHalfExtents:{x:1.05,y:.8,z:2.1},bodyCenterY:.84,
     maxCollisionIterations:3
   };
@@ -259,6 +259,38 @@
         if(hit)hits.push({...hit,probe});
       }
       return hits;
+    }
+    _resolveSurfacePenetration(){
+      const c=this.config,s=this.state;
+      if(!this.surfaceMesh)return false;
+      const half=c.bodyHalfExtents;
+      let resolved=false;
+      // Wheel contacts provide suspension, but they alone do not make the chassis
+      // solid: a fast fall or a missed wheel sample can let the body cross the road.
+      // Resolve the deepest chassis-corner penetration against the same road mesh,
+      // using the local support normal so banked sections and loops remain two-sided.
+      for(let iter=0;iter<c.maxSurfaceCollisionIterations;iter++){
+        const q=s.orientation;
+        const center=V.add(s.position,Q.rotate(q,V.make(0,c.bodyCenterY,0)));
+        let deepest=null;
+        for(const x of [-half.x,half.x])for(const y of [-half.y,half.y])for(const z of [-half.z,half.z]){
+          const corner=V.add(center,Q.rotate(q,V.make(x,y,z)));
+          const hit=this.surfaceMesh.closestPoint(corner,c.surfaceCollisionReach,s.contactNormal);
+          if(!hit)continue;
+          const penetration=-hit.signedDistance;
+          if(penetration>c.surfaceSeparation&&(!deepest||penetration>deepest.penetration)){
+            deepest={normal:hit.normal,penetration};
+          }
+        }
+        if(!deepest)break;
+        s.position=V.add(s.position,V.mul(deepest.normal,deepest.penetration+c.surfaceSeparation));
+        const vn=V.dot(s.velocity,deepest.normal);
+        if(vn<0)s.velocity=V.sub(s.velocity,V.mul(deepest.normal,(1+c.surfaceCollisionRestitution)*vn));
+        s.contactNormal={...deepest.normal};
+        resolved=true;
+      }
+      if(resolved&&s.collisionState==='none')s.collisionState='track';
+      return resolved;
     }
     _applyStaticCollisions(){
       const c=this.config,s=this.state,half=c.bodyHalfExtents;
@@ -364,7 +396,7 @@
       const velocityMagnitude=V.len(s.velocity);
       if(velocityMagnitude>c.maxSpeed*1.35)s.velocity=V.mul(s.velocity,(c.maxSpeed*1.35)/velocityMagnitude);
       s.position=V.add(s.position,V.mul(s.velocity,dt));
-      this._applyStaticCollisions();
+      this._resolveSurfacePenetration();\n      this._applyStaticCollisions();\n      this._resolveSurfacePenetration();
       const contacts=this._wheelContacts().filter(h=>h.distance<=contactThreshold || h.signedDistance<c.suspensionRestLength);
       if(contacts.length>=2){
         let nsum=V.make(0,0,0),correction=V.make(0,0,0),correctionCount=0;
@@ -432,7 +464,7 @@
     }
   }
 
-  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.0.7'};
+  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.0.8'};
   root.PlayCarPhysicsEngine=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
