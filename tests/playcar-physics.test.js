@@ -45,11 +45,12 @@ test('left and right steering turn in the matching direction',()=>{
   assert.ok(leftForward.x<-.12,'left input should turn the nose toward -X/left');
   finiteState(right);finiteState(left);
 });
-test('tire grip damps lateral velocity; handbrake has a weaker grip response',()=>{
+test('tire grip damps lateral velocity; handbrake uses equal grip',()=>{
   const normal=makeEngine();normal.state.velocity={x:8,y:0,z:-12};runFor(normal,.5,{},60);
-  const drift=makeEngine();drift.state.velocity={x:8,y:0,z:-12};runFor(drift,.5,{handbrake:1},60);
+  const handbrake=makeEngine();handbrake.state.velocity={x:8,y:0,z:-12};runFor(handbrake,.5,{handbrake:1},60);
   assert.ok(Math.abs(normal.state.velocity.x)<8,'normal grip must oppose side slip');
-  assert.ok(Math.abs(drift.state.velocity.x)>Math.abs(normal.state.velocity.x),'handbrake should retain more lateral slip');
+  assert.equal(handbrake.config.handbrakeGrip,normal.config.tireGrip,
+    'handbrake grip must equal normal tire grip');
 });
 test('fixed-step simulation is near-identical at 30 and 120 render frames per second',()=>{
   const a=makeEngine(),b=makeEngine();
