@@ -203,3 +203,35 @@ test('game HTML never updates removed debug panel elements in the render loop',(
   assert.match(html,/function animate\(now\)[\s\S]*?update\(dt\);renderer\.render\(scene,camera\)/);
   assert.match(html,/function updateWeather\(dt\)/);
 });
+
+test('grounded braking is limited by tire friction instead of raw brake strength',()=>{
+  const e=makeEngine();
+  e.state.velocity={x:0,y:0,z:-20};
+  const before=V.dot(e.state.velocity,Q.rotate(e.state.orientation,{x:0,y:0,z:-1}));
+  e.advance(1/120,{brake:1});
+  const forward=Q.rotate(e.state.orientation,{x:0,y:0,z:-1});
+  const after=V.dot(e.state.velocity,forward);
+  const deceleration=(before-after)/(1/120);
+  assert.ok(deceleration < e.config.tireGrip*e.config.gravity+3,
+    'grounded braking deceleration should stay near the available tire-friction limit');
+  finiteState(e);
+});
+test('holding brake from rest engages reverse like an arcade racer',()=>{
+  const e=makeEngine();
+  runFor(e,.65,{brake:1},60);
+  const forward=Q.rotate(e.state.orientation,{x:0,y:0,z:-1});
+  const longitudinal=V.dot(e.state.velocity,forward);
+  assert.ok(longitudinal < -2,'brake held from rest should move the car backward');
+  finiteState(e);
+});
+test('speed-dependent downforce increases available braking grip at speed',()=>{
+  function initialDeceleration(speed){
+    const e=makeEngine();
+    e.state.velocity={x:0,y:0,z:-speed};
+    const before=V.len(e.state.velocity);
+    e.advance(1/120,{brake:1});
+    return (before-V.len(e.state.velocity))/(1/120);
+  }
+  const low=initialDeceleration(10), high=initialDeceleration(45);
+  assert.ok(high>low+1.5,'higher speed should add downforce and increase tire load');
+});
