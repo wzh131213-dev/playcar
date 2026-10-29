@@ -1,189 +1,152 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#0b111c"><title>POLY RUSH · 3D竞速</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111f">
+<title>PlayCar Physics Lab</title>
 <style>
-:root{color-scheme:dark;--cyan:#8ff7ff;--panel:rgba(9,15,26,.78)}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#8dc7e5;font-family:Inter,system-ui,-apple-system,"PingFang SC",sans-serif;touch-action:none}canvas{display:block;width:100%;height:100%;outline:0}#ui{position:fixed;inset:0;pointer-events:none;color:#fff;text-shadow:0 2px 8px #0008}#brand{position:absolute;left:20px;top:16px;font-weight:1000;font-style:italic;letter-spacing:2px;font-size:clamp(17px,3vw,25px)}#brand span{color:var(--cyan)}#hint{font-size:10px;letter-spacing:2px;color:#d8eaf5;font-weight:700;margin-top:4px}#hud{position:absolute;top:16px;right:18px;display:flex;gap:9px} .panel{background:var(--panel);border:1px solid #ffffff2b;backdrop-filter:blur(12px);border-radius:12px;padding:9px 13px;min-width:82px} .lab{font-size:9px;letter-spacing:1.5px;color:#a8c4d5;font-weight:800}.val{font-size:clamp(20px,4vw,30px);font-weight:950;font-variant-numeric:tabular-nums;line-height:1.15}.unit{font-size:10px;color:#b6d3df}#progressWrap{position:absolute;left:50%;top:20px;transform:translateX(-50%);width:min(30vw,260px);text-align:center}#progress{height:5px;background:#001a2c55;border-radius:8px;overflow:hidden;margin-top:8px}#bar{height:100%;width:0;background:var(--cyan);box-shadow:0 0 12px var(--cyan)}#progressText{font-size:10px;letter-spacing:2px;font-weight:900}#bottom{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}button{font:inherit;color:white;background:rgba(8,15,27,.78);border:1px solid #ffffff42;border-radius:11px;padding:10px 15px;font-size:12px;font-weight:850;letter-spacing:.5px;backdrop-filter:blur(10px);cursor:pointer;touch-action:manipulation}button:active{transform:scale(.96)}button.primary{background:var(--cyan);color:#07151b;border-color:var(--cyan)}#overlay{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,#08131c55,#07101bcc);z-index:5;color:white;padding:22px}#overlay.hidden{display:none}.hero{width:min(560px,100%);text-align:center;padding:28px 22px;border:1px solid #ffffff30;background:#081523b8;border-radius:24px;box-shadow:0 25px 90px #0005;backdrop-filter:blur(15px)}.eyebrow{color:var(--cyan);font-weight:900;letter-spacing:4px;font-size:11px}.hero h1{font-size:clamp(38px,10vw,76px);line-height:.95;letter-spacing:-3px;margin:15px 0 12px;font-weight:1000;font-style:italic}.hero h1 em{color:var(--cyan);font-style:normal}.hero p{color:#c4d7e3;line-height:1.7;font-size:13px;max-width:400px;margin:0 auto 22px}.hero .primary{font-size:14px;padding:14px 30px;min-width:190px}.keys{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:18px;color:#bdd2df;font-size:10px}.keys span{border:1px solid #ffffff26;border-radius:6px;padding:5px 8px}#touch{position:fixed;inset:auto 0 78px;display:none;justify-content:space-between;padding:0 18px;pointer-events:none;z-index:3}.cluster{display:flex;gap:9px;align-items:end}.touchbtn{width:60px;height:60px;border-radius:18px;display:grid;place-items:center;font-size:22px;background:#06152188;border:1px solid #ffffff50;pointer-events:auto;user-select:none;-webkit-user-select:none;touch-action:none}.touchbtn.gas{height:78px;width:66px;background:#8ff7ffcc;color:#05151a;font-size:12px}.touchbtn small{font-size:9px;display:block}.touchbtn.active{background:#fff;color:#07151b}@media(pointer:coarse){#touch{display:flex}#bottom{bottom:8px}#hud{top:68px;right:10px;gap:5px}.panel{min-width:68px;padding:7px 9px}#progressWrap{top:20px}}@media(max-width:600px){#brand{left:12px;top:12px}#hint{letter-spacing:1px;font-size:8px}#progressWrap{width:29vw;top:18px}.hero{padding:26px 16px}.keys{display:none}}
-</style></head><body>
-<div id="brand">POLY<span>RUSH</span><div id="hint">LOW-POLY CIRCUIT · TIME ATTACK</div></div>
-<div id="progressWrap"><div id="progressText">LAP 01 / 03</div><div id="progress"><div id="bar"></div></div></div>
-<div id="hud"><div class="panel"><div class="lab">SPEED</div><div class="val" id="speed">000</div><div class="unit">KM/H</div></div><div class="panel"><div class="lab">TIME</div><div class="val" id="time">00:00.00</div><div class="unit">BEST <span id="best">--:--.--</span></div></div></div>
-<div id="bottom"><button id="restart">↻ 重置</button><button id="camera">相机：追尾</button><button id="pause">Ⅱ 暂停</button><button id="weatherToggle">天气：晴天</button></div>
-<div id="touch"><div class="cluster"><div class="touchbtn" data-key="left">◀</div><div class="touchbtn" data-key="right">▶</div></div><div class="cluster"><div class="touchbtn" data-key="brake">刹车</div><div class="touchbtn gas" data-key="gas">加速<small>HOLD</small></div></div></div>
-<div id="overlay"><div class="hero"><div class="eyebrow">DYNAMIC WEATHER · REAL-TIME TRACK CONDITIONS</div><h1>POLY<em>RUSH</em></h1><p>动态天气赛道：太阳、云层、风与雨会实时改变环境；雨天抓地力下降，侧风会影响车身轨迹。支持键盘和 iPad 触屏操作。</p><button class="primary" id="start">开始比赛　→</button><div class="keys"><span>W / ↑ 加速</span><span>S / ↓ 刹车</span><span>A D / ← → 转向</span><span>空格 手刹</span></div></div></div>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script src="./physics/playcar-physics-engine.js?v=1.5.0"></script>
+:root{color-scheme:dark;--bg:#07111f;--panel:#0d1b2e;--line:#203650;--muted:#91a6bd;--cyan:#76e4f7;--green:#7be0b0;--red:#ff8d9a}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(ellipse at 15% 0,#142a43 0,transparent 44%),var(--bg);color:#edf5ff;font:15px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{padding:clamp(12px,3vw,28px)}button,input{font:inherit}button{border:1px solid #36516d;border-radius:10px;background:#152942;color:#eff8ff;padding:10px 14px;min-height:44px;cursor:pointer;touch-action:manipulation}button:active{transform:scale(.98)}button.primary{background:var(--cyan);color:#07111f;border-color:var(--cyan);font-weight:800}button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+header{max-width:1180px;margin:0 auto 22px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.eyebrow{font-size:11px;letter-spacing:2.5px;color:var(--cyan);font-weight:850}h1{font-size:clamp(25px,5vw,40px);line-height:1.1;letter-spacing:-1px;margin:5px 0 7px}.sub{margin:0;color:var(--muted);max-width:680px;font-size:13px}.version{border:1px solid #2a4662;border-radius:999px;padding:7px 11px;color:var(--green);font-size:12px;white-space:nowrap}
+.layout{max-width:1180px;margin:auto;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(290px,.85fr);gap:16px}.panel{background:linear-gradient(155deg,#10233a,#0a1728);border:1px solid var(--line);border-radius:18px;padding:18px;min-width:0;box-shadow:0 12px 36px #0002}.panel h2{font-size:16px;margin:0 0 5px}.muted{color:var(--muted);font-size:12px}.viewport{margin-top:14px;border:1px solid #243b54;border-radius:14px;overflow:hidden;background:#071321}.viewport canvas{display:block;width:100%;height:260px;touch-action:pan-y}.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}.metric{background:#091728;border:1px solid #1d334a;border-radius:11px;padding:10px;min-width:0}.metric small{display:block;color:var(--muted);font-size:10px;letter-spacing:.8px;text-transform:uppercase}.metric strong{display:block;font-size:21px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.metric em{font-style:normal;color:var(--muted);font-size:10px}
+.controlrow{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}.drive{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.drive button{padding:9px 5px}.drive .gas{background:#123a42;border-color:#28727b}.drive .brake{background:#3a202d;border-color:#704052}.drive .empty{visibility:hidden}.range{margin-top:15px}.rangehead{display:flex;justify-content:space-between;gap:12px;margin-bottom:6px;font-size:12px}.range input{width:100%;accent-color:var(--cyan)}.sectiongap{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}.resultlist{display:grid;gap:8px;margin-top:13px}.result{display:flex;align-items:flex-start;gap:9px;background:#091728;border:1px solid #1b3046;border-radius:10px;padding:10px;font-size:12px}.dot{flex:0 0 9px;width:9px;height:9px;border-radius:50%;margin-top:5px;background:#6a7f95}.result.pass .dot{background:var(--green)}.result.fail .dot{background:var(--red)}.result b{display:block;font-size:12px}.result span{color:var(--muted)}.footer{max-width:1180px;margin:18px auto 0;color:#71879e;font-size:11px}
+@media(max-width:800px){.layout{grid-template-columns:1fr}.panel{padding:14px}.viewport canvas{height:220px}.metrics{gap:6px}.metric{padding:8px}.metric strong{font-size:18px}}@media(max-width:380px){body{padding:10px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.drive{gap:5px}.drive button{font-size:12px}}
+</style>
+</head>
+<body>
+<header>
+  <div><div class="eyebrow">PLAYCAR / ENGINEERING</div><h1>Physics Lab</h1><p class="sub">独立物理引擎实验台 · 不包含赛车游戏、赛道关卡或游戏资源。用于观察车辆状态、操控响应与自动化物理检查。</p></div>
+  <div class="version" id="engine-version">ENGINE LOADING</div>
+</header>
+<main class="layout">
+  <section class="panel">
+    <h2>实时物理状态</h2><div class="muted">示意视图并非游戏场景；拖动控制按钮可持续输入，松开即停止输入。</div>
+    <div class="viewport"><canvas id="view" width="900" height="360" aria-label="车辆物理状态示意图"></canvas></div>
+    <div class="metrics">
+      <div class="metric"><small>速度</small><strong id="speed">0.0</strong><em>world units/s</em></div>
+      <div class="metric"><small>垂直速度</small><strong id="vertical-speed">0.0</strong><em>world units/s</em></div>
+      <div class="metric"><small>接触状态</small><strong id="grip">AIR</strong><em id="collision">collision: none</em></div>
+      <div class="metric"><small>位置 X / Z</small><strong id="position">0 / 0</strong><em>world coordinates</em></div>
+      <div class="metric"><small>俯仰角</small><strong id="pitch">0.0°</strong><em>nose-up / nose-down</em></div>
+      <div class="metric"><small>物理步进</small><strong id="tick">0</strong><em id="step-ms">0.00 ms / step</em></div>
+    </div>
+    <div class="controlrow"><button class="primary" id="reset-car">重置车辆</button><button id="pitch-test">生成车头下倾状态</button></div>
+    <div class="drive" aria-label="车辆输入控制">
+      <button class="empty" tabindex="-1" aria-hidden="true">—</button>
+      <button class="gas" id="throttle" data-input="gas">▲ 油门</button>
+      <button class="empty" tabindex="-1" aria-hidden="true">—</button>
+      <button id="steer-left" data-input="left">◀ 左转</button>
+      <button class="brake" id="brake" data-input="brake">▼ 刹车</button>
+      <button id="steer-right" data-input="right">右转 ▶</button>
+    </div>
+    <div class="range"><div class="rangehead"><label for="wind">横向风力</label><strong id="wind-value">0</strong></div><input id="wind" type="range" min="-20" max="20" value="0"></div>
+    <div class="range"><div class="rangehead"><label for="wetness">路面湿滑度</label><strong id="wetness-value">0%</strong></div><input id="wetness" type="range" min="0" max="100" value="0"></div>
+  </section>
+  <section class="panel">
+    <h2>物理自动测试</h2><div class="muted">测试会在独立的临时引擎实例中运行，不会改变左侧正在观察的车辆状态。</div>
+    <div class="controlrow"><button class="primary" id="run-tests">运行全部测试</button><button id="clear-results">清空结果</button></div>
+    <div class="resultlist" id="test-results" aria-live="polite"><div class="result"><i class="dot"></i><div><b>等待测试</b><span>点击“运行全部测试”开始检查引擎。</span></div></div></div>
+    <div class="sectiongap"><h2>当前测试范围</h2>
+      <div class="resultlist">
+        <div class="result pass"><i class="dot"></i><div><b>轮胎与地面接触</b><span>平面三角网格与车辆接触状态。</span></div></div>
+        <div class="result pass"><i class="dot"></i><div><b>加速与刹车</b><span>速度变化与状态数值有限性。</span></div></div>
+        <div class="result pass"><i class="dot"></i><div><b>空中俯仰回正</b><span>无主动输入时，车头下倾应逐渐恢复。</span></div></div>
+        <div class="result pass"><i class="dot"></i><div><b>物理步进稳定性</b><span>检测位置、速度和四元数是否出现 NaN / Infinity。</span></div></div>
+      </div>
+    </div>
+  </section>
+</main>
+<div class="footer">PlayCar Physics Engine · 本页面只用于物理调试与测试。浏览器端自动测试不等于真实 iPad 设备验证。</div>
+<script src="./physics/playcar-physics-engine.js"></script>
 <script>
-(()=>{'use strict';
+(function(){
+'use strict';
 const $=id=>document.getElementById(id);
-
-if(!window.THREE){$('overlay').querySelector('p').textContent='3D 引擎加载失败，请检查网络后刷新页面。';return}
-if(!window.PlayCarPhysicsEngine){$('overlay').querySelector('p').textContent='PlayCar 物理模块加载失败，请检查 physics/playcar-physics-engine.js 后刷新。';return}
-const scene=new THREE.Scene();scene.background=new THREE.Color(0x9bcfe7);scene.fog=new THREE.Fog(0x9bcfe7,100,330);
-const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,.1,900);
-const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;document.body.prepend(renderer.domElement);
-scene.add(new THREE.HemisphereLight(0xe8f7ff,0x526b47,2.15));const sun=new THREE.DirectionalLight(0xfff2d6,3.0);sun.position.set(-55,95,35);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-120;sun.shadow.camera.right=120;sun.shadow.camera.top=120;sun.shadow.camera.bottom=-120;scene.add(sun);
-const sunDisc=new THREE.Mesh(new THREE.SphereGeometry(5,16,12),new THREE.MeshBasicMaterial({color:0xfff1b0}));scene.add(sunDisc);
-const cloudMaterial=new THREE.MeshLambertMaterial({color:0xf4f8fb,transparent:true,opacity:.88,flatShading:true}),clouds=[];
-for(let i=0;i<12;i++){const cloud=new THREE.Group();for(let j=0;j<5;j++){const puff=new THREE.Mesh(new THREE.IcosahedronGeometry(2.8+(j%3)*.9,1),cloudMaterial);puff.position.set((j-2)*2.7,(j%2)*1.05,Math.sin(j*1.7)*1.8);puff.scale.y=.65;cloud.add(puff)}cloud.userData={phase:i*17.3,speed:.7+(i%4)*.18};scene.add(cloud);clouds.push(cloud)}
-const rainCount=720,rainGeometry=new THREE.BufferGeometry(),rainPositions=new Float32Array(rainCount*6);
-for(let i=0;i<rainCount;i++){const k=i*6,x=(Math.random()-.5)*54,y=2+Math.random()*32,z=(Math.random()-.5)*54;rainPositions[k]=x;rainPositions[k+1]=y;rainPositions[k+2]=z;rainPositions[k+3]=x-.12;rainPositions[k+4]=y-.8;rainPositions[k+5]=z-.06}
-rainGeometry.setAttribute('position',new THREE.BufferAttribute(rainPositions,3));
-const rainMaterial=new THREE.LineBasicMaterial({color:0xb9e5ff,transparent:true,opacity:.58}),rain=new THREE.LineSegments(rainGeometry,rainMaterial);rain.frustumCulled=false;rain.visible=false;scene.add(rain);
-const weatherModes=[{name:'晴天',wind:{x:0,z:0},wetness:0,rain:0,clouds:.42,sky:0x9bcfe7,sun:1},{name:'多云',wind:{x:2,z:1},wetness:0,rain:0,clouds:.95,sky:0x819eb2,sun:.62},{name:'小雨',wind:{x:3,z:2},wetness:.58,rain:.62,clouds:1,sky:0x657f95,sun:.25},{name:'暴风雨',wind:{x:8,z:5},wetness:1,rain:1,clouds:1,sky:0x3d5067,sun:.08}];
-let weatherIndex=0,weatherClock=0;
-function applyWeather(index){weatherIndex=(index+weatherModes.length)%weatherModes.length;const w=weatherModes[weatherIndex];if(physics)physics.setWeather({wind:w.wind,wetness:w.wetness});scene.background.setHex(w.sky);scene.fog.color.setHex(w.sky);sun.intensity=3*w.sun;sunDisc.visible=w.sun>.2;cloudMaterial.opacity=.88*w.clouds;rain.visible=w.rain>0;rainMaterial.opacity=.65*w.rain;roadMat.color.setHex(w.wetness?0x202b38:0x363d49);roadMat.roughness=w.wetness?.22:.85;$('weatherToggle').textContent='天气：'+w.name}
-function updateWeather(dt){weatherClock+=dt;const w=weatherModes[weatherIndex],anchor=car.position;sunDisc.position.set(anchor.x-72,anchor.y+72,anchor.z-110);sun.position.set(anchor.x-55,anchor.y+95,anchor.z+35);clouds.forEach(cloud=>{const phase=cloud.userData.phase+weatherClock*cloud.userData.speed;cloud.position.set(anchor.x+Math.sin(phase*.008)*105+(cloud.userData.phase%5-2)*24,anchor.y+42+(cloud.userData.phase%4)*5,anchor.z-70+(cloud.userData.phase%6-3)*24);cloud.position.x+=w.wind.x*dt*.08});const p=rainGeometry.attributes.position.array;for(let i=0;i<rainCount;i++){const k=i*6;p[k]-=w.wind.x*dt*.5;p[k+2]-=w.wind.z*dt*.5;p[k+1]-=(18+Math.hypot(w.wind.x,w.wind.z))*dt;p[k+3]=p[k]-.12-w.wind.x*.025;p[k+4]=p[k+1]-.8;p[k+5]=p[k+2]-.06-w.wind.z*.025;if(p[k+1]<-1){p[k]=(Math.random()-.5)*54;p[k+1]=8+Math.random()*28;p[k+2]=(Math.random()-.5)*54}}rainGeometry.attributes.position.needsUpdate=true;rain.position.copy(anchor)}
-
-const mat=(color,roughness=.85)=>new THREE.MeshStandardMaterial({color,roughness,flatShading:true});
-const grassMat=mat(0x65a86a),roadMat=mat(0x363d49),edgeMat=mat(0xf4f3e8),redMat=mat(0xf04b3d,.45),darkMat=mat(0x17232f,.6),glassMat=new THREE.MeshStandardMaterial({color:0x83dce8,metalness:.2,roughness:.25}),tireMat=mat(0x10151c),yellowMat=mat(0xffd45a),whiteMat=mat(0xf7f8f0);
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(1100,1100),grassMat);ground.rotation.x=-Math.PI/2;ground.position.y=-18;ground.receiveShadow=true;scene.add(ground);
-let N=720;const points=[], widths=[];for(let i=0;i<N;i++){const t=i/N*Math.PI*2;const x=Math.sin(t)*125+Math.sin(3*t)*28;const z=Math.cos(t)*160+Math.sin(2*t)*25;const y=2+Math.sin(3*t+.5)*8+Math.sin(7*t)*2.5;points.push(new THREE.Vector3(x,y,z));widths.push(13)}
-const curve=new THREE.CatmullRomCurve3(points,true,'catmullrom',.28);
-let samples=curve.getPoints(N);
-// A shaped jump ramp: a rising approach, a short crest and a landing descent.
-// Height is authored into the centerline itself, so the road is real 3D geometry.
-const rampCenter=365;
-for(let i=0;i<samples.length;i++){
-  let lift=0;
-  if(i>=rampCenter-22&&i<rampCenter-8){const u=(i-(rampCenter-22))/14;lift=7.5*u*u*(3-2*u);}
-  else if(i>=rampCenter-8&&i<=rampCenter-3){lift=7.5;}
-  else if(i>rampCenter-3&&i<rampCenter+20){const u=1-(i-(rampCenter-3))/23;lift=7.5*u*u*(3-2*u);}
-  samples[i].y+=lift;
+const API=window.PlayCarPhysicsEngine;
+if(!API){$('engine-version').textContent='ENGINE FAILED';$('test-results').textContent='物理引擎加载失败，请检查 physics/playcar-physics-engine.js 路径。';return;}
+const {PlayCarPhysicsEngine:Engine,TriangleMesh,Vector3:V,Quaternion:Q}=API;
+$('engine-version').textContent='ENGINE '+API.version;
+function makeSurface(){
+  const a={x:-120,y:0,z:-120},b={x:-120,y:0,z:120},c={x:120,y:0,z:120},d={x:120,y:0,z:-120};
+  return TriangleMesh.fromTriangles([[a,b,c],[a,c,d]],8);
 }
-// Replace a section of the original route with a closed vertical loop and a smooth exit connector.
-const loopStart=180,loopEnd=240,base=samples.map(p=>p.clone());
-const loopOrigin=base[loopStart].clone(),end=base[loopEnd].clone();
-const baseTangent=base[(loopStart+1)%base.length].clone().sub(base[(loopStart-1+base.length)%base.length]).normalize();
-const endTangent=base[(loopEnd+1)%base.length].clone().sub(base[loopEnd-1].clone()).normalize();
-const loopRadius=13,loopCount=144,loopPoints=[];
-const loopUp=new THREE.Vector3(0,1,0);
-for(let i=0;i<=loopCount;i++){
-  const a=i/loopCount*Math.PI*2;
-  loopPoints.push(loopOrigin.clone().addScaledVector(baseTangent,loopRadius*Math.sin(a)).addScaledVector(loopUp,loopRadius*(1-Math.cos(a))));
+const surface=makeSurface();
+function newEngine(position={x:0,y:.04,z:0}){return new Engine({surfaceMesh:surface,position});}
+let physics=newEngine(),last=performance.now(),keys={gas:false,brake:false,left:false,right:false},running=true;
+const canvas=$('view'),ctx=canvas.getContext('2d');
+function forward(){return Q.rotate(physics.state.orientation,V.make(0,0,-1));}
+function pitchDeg(){return Math.asin(V.clamp(forward().y,-1,1))*180/Math.PI;}
+function stateFinite(e){const s=e.state;return ['x','y','z'].every(k=>Number.isFinite(s.position[k])&&Number.isFinite(s.velocity[k]))&&['x','y','z','w'].every(k=>Number.isFinite(s.orientation[k]));}
+function reset(){physics=newEngine();physics.setWeather({wind:{x:Number($('wind').value)*.12,z:0},wetness:Number($('wetness').value)/100});keys={gas:false,brake:false,left:false,right:false};}
+function renderView(){
+  const w=canvas.clientWidth||900,h=canvas.clientHeight||260,dpr=Math.min(window.devicePixelRatio||1,2);
+  if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);}
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+  ctx.fillStyle='#071321';ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle='#152b40';ctx.lineWidth=1;
+  for(let x=0;x<w;x+=28){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+  for(let y=0;y<h;y+=28){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  const s=physics.state,scale=Math.min(w/44,h/15),cx=w/2,cy=h/2;
+  ctx.strokeStyle='#2c526d';ctx.setLineDash([5,7]);ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,h);ctx.moveTo(0,cy);ctx.lineTo(w,cy);ctx.stroke();ctx.setLineDash([]);
+  const yaw=Math.atan2(-forward().x,-forward().z);
+  ctx.save();ctx.translate(cx-s.position.x*scale*.35,cy+s.position.z*scale*.35);ctx.rotate(-yaw);
+  ctx.fillStyle='#173b4b';ctx.strokeStyle='#76e4f7';ctx.lineWidth=2;
+  ctx.beginPath();ctx.roundRect(-19,-34,38,68,8);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#76e4f7';ctx.beginPath();ctx.moveTo(0,-46);ctx.lineTo(-8,-29);ctx.lineTo(8,-29);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#c2f8ff';ctx.fillRect(-12,-21,24,12);
+  ctx.restore();
+  ctx.fillStyle='#91a6bd';ctx.font='11px system-ui';ctx.fillText('TOP VIEW · schematic',12,19);
+  ctx.fillText('X '+s.position.x.toFixed(2)+'   Z '+s.position.z.toFixed(2),12,h-13);
 }
-const connectorCount=36,connector=[];
-const chord=loopOrigin.distanceTo(end),c1=loopOrigin.clone().addScaledVector(baseTangent,Math.max(10,chord*.38)),c2=end.clone().addScaledVector(endTangent,-Math.max(10,chord*.38));
-for(let i=1;i<=connectorCount;i++){
-  const t=i/connectorCount,u=1-t;
-  connector.push(loopOrigin.clone().multiplyScalar(u*u*u).addScaledVector(c1,3*u*u*t).addScaledVector(c2,3*u*t*t).addScaledVector(end,t*t*t));
+function updateUI(){
+ const s=physics.state,debug=physics.debugSnapshot();
+ $('speed').textContent=V.len(s.velocity).toFixed(2);$('vertical-speed').textContent=s.velocity.y.toFixed(2);
+ $('grip').textContent=s.gripState;$('collision').textContent='collision: '+s.collisionState;
+ $('position').textContent=s.position.x.toFixed(1)+' / '+s.position.z.toFixed(1);$('pitch').textContent=pitchDeg().toFixed(1)+'°';
+ $('tick').textContent=String(s.tick);$('step-ms').textContent=debug.physicsMs.toFixed(3)+' ms / step';
+ renderView();
 }
-samples=[...base.slice(0,loopStart+1),...loopPoints.slice(1),...connector,...base.slice(loopEnd+1)];
-N=samples.length;
-const tangents=samples.map((p,i)=>samples[(i+1)%N].clone().sub(samples[(i-1+N)%N]).normalize());
-const frameUps=samples.map((p,i)=>{
-  const loopIndex=i-loopStart;
-  if(loopIndex>=0&&loopIndex<=loopCount){
-    const a=loopIndex/loopCount*Math.PI*2;
-    return loopUp.clone().multiplyScalar(Math.cos(a)).addScaledVector(baseTangent,-Math.sin(a)).normalize();
-  }
-  const prev=tangents[(i-1+N)%N],next=tangents[(i+1)%N];
-  const bend=prev.clone().cross(next).y;
-  const bank=THREE.MathUtils.clamp(-bend*1.9,-.38,.38);
-  const up=new THREE.Vector3(0,1,0);
-  const axis=tangents[i];
-  return up.applyAxisAngle(axis,bank).normalize();
-});
-const sideVectors=tangents.map((t,i)=>new THREE.Vector3().crossVectors(t,frameUps[i]).normalize());
-function roadMesh(offset,width,material,yOffset=0){const verts=[],uv=[],idx=[];for(let i=0;i<=N;i++){const j=i%N,p=samples[j],side=sideVectors[j],up=frameUps[j];const a=p.clone().addScaledVector(side,offset-width/2).addScaledVector(up,yOffset);const b=p.clone().addScaledVector(side,offset+width/2).addScaledVector(up,yOffset);verts.push(a.x,a.y,a.z,b.x,b.y,b.z);uv.push(0,i/N*80,1,i/N*80);if(i<N){const k=i*2;idx.push(k,k+1,k+2,k+1,k+3,k+2)}}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();const m=new THREE.Mesh(g,material);m.receiveShadow=true;m.castShadow=false;scene.add(m);return m}
-const TRACK_WIDTH=19;
-const trackSurfaceMesh=roadMesh(0,TRACK_WIDTH,roadMat,.1);
-roadMesh(-TRACK_WIDTH/2+.24,.48,edgeMat,.17);roadMesh(TRACK_WIDTH/2-.24,.48,edgeMat,.17);
-const dashMat=mat(0xf8f6dd);for(let i=0;i<N;i+=8){const p=samples[i],s=sideVectors[i];const g=new THREE.BoxGeometry(.16,.045,1.6);const dash=new THREE.Mesh(g,dashMat);dash.position.set(p.x,p.y+.25,p.z);dash.rotation.y=Math.atan2(tangents[i].x,tangents[i].z);scene.add(dash)}
-// Decorative low-poly hills, trees and trackside markers
-for(let i=0;i<220;i++){const j=(i*37)%N,p=samples[j],side=sideVectors[j],sgn=i%2?1:-1,dist=18+(i*13)%45;const pos=p.clone().addScaledVector(side,sgn*dist);const h=5+(i*17)%15;const tree=new THREE.Group();const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.45,.7,h*.45,5),mat(0x76533b));trunk.position.y=h*.22;trunk.userData.physicsCollider=true;tree.add(trunk);const crown=new THREE.Mesh(new THREE.ConeGeometry(2.5+(i%3),h*.7,5),mat(i%3===0?0x2f744b:0x438b55));crown.position.y=h*.72;tree.add(crown);tree.position.set(pos.x,p.y-1,pos.z);tree.rotation.y=i*2.4;scene.add(tree)}
-// Track gantries and glowing checkpoint beacons
-function makeGate(idx,label){const p=samples[idx],tan=tangents[idx],side=sideVectors[idx],up=frameUps[idx],g=new THREE.Group();const postMat=mat(0x202b39,.4);for(const x of [-TRACK_WIDTH/2-.1,TRACK_WIDTH/2+.1]){const post=new THREE.Mesh(new THREE.BoxGeometry(.55,6,.55),postMat);post.position.set(x,3,0);post.userData.physicsCollider=true;g.add(post)}const beam=new THREE.Mesh(new THREE.BoxGeometry(TRACK_WIDTH+1.7,.7,.65),yellowMat);beam.position.y=6;beam.userData.physicsCollider=true;g.add(beam);for(let x=-5;x<=5;x+=2.5){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.8,.22,.15),whiteMat);lamp.position.set(x,6,.38);g.add(lamp)}g.position.set(p.x,p.y,p.z);g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side,up,tan.clone().negate()));scene.add(g)}
-makeGate(0,'START');makeGate(Math.floor(N*.5),'CHECK');makeGate(Math.floor(N*.75),'CHECK');
-const car=new THREE.Group();const chassis=new THREE.Mesh(new THREE.BoxGeometry(2.05,.62,4.1),redMat);chassis.position.y=.72;chassis.castShadow=true;car.add(chassis);
-const nose=new THREE.Mesh(new THREE.BoxGeometry(1.72,.27,1.25),redMat);nose.position.set(0,.95,-1.35);car.add(nose);
-const cabin=new THREE.Mesh(new THREE.BoxGeometry(1.4,.67,1.65),glassMat);cabin.position.set(0,1.23,.05);cabin.castShadow=true;car.add(cabin);
-const roof=new THREE.Mesh(new THREE.BoxGeometry(1.22,.12,.9),darkMat);roof.position.set(0,1.6,.08);car.add(roof);
-for(const x of [-.78,.78]){for(const z of [-1.42,1.35]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.42,.42,.28,10),tireMat);wheel.rotation.z=Math.PI/2;wheel.position.set(x,.48,z);wheel.castShadow=true;car.add(wheel)}}
-for(const x of [-.65,.65]){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.36,.17,.12),yellowMat);lamp.position.set(x,.78,-2.08);car.add(lamp);const tail=new THREE.Mesh(new THREE.BoxGeometry(.4,.13,.1),mat(0xff3327));tail.position.set(x,.76,2.08);car.add(tail)}
-scene.add(car);
-const keys={left:false,right:false,gas:false,brake:false,hand:false};let running=false,paused=false,startedAt=0,elapsed=0,last=performance.now(),speed=0,progress=0,lateral=0,lap=1,camMode=0,best=Number(localStorage.getItem('polyrush-best')||0),yaw=0,nearestIndex=0,previousProgress=0;
-function fmt(s){if(!isFinite(s)||s<=0)return '00:00.00';const m=Math.floor(s/60),sec=(s%60).toFixed(2).padStart(5,'0');return String(m).padStart(2,'0')+':'+sec}
-$('best').textContent=best?fmt(best):'--:--.--';
-function findRoadPosition(x,z,y=0){let bestIndex=0,bestDist=Infinity;for(let i=0;i<N;i++){const dx=x-samples[i].x,dy=y-samples[i].y,dz=z-samples[i].z,d=dx*dx+dy*dy+dz*dz;if(d<bestDist){bestDist=d;bestIndex=i}}return bestIndex}
-function reset(){Object.keys(keys).forEach(k=>keys[k]=false);document.querySelectorAll('.touchbtn').forEach(el=>el.classList.remove('active'));speed=0;progress=0;lateral=0;trackDistance=0;lap=1;elapsed=0;nearestIndex=0;previousProgress=0;const p=samples[0],tan=tangents[0];yaw=Math.atan2(-tan.x,-tan.z);physics.reset({x:p.x,y:p.y+.12,z:p.z},yaw);car.position.set(p.x,p.y+.12,p.z);car.quaternion.set(physics.state.orientation.x,physics.state.orientation.y,physics.state.orientation.z,physics.state.orientation.w);startedAt=performance.now();$('bar').style.width='0%';$('progressText').textContent='LAP 01 / 03';$('speed').textContent='000';$('time').textContent='00:00.00'}
-// PlayCar Physics Engine 1.0: physics is solved in world-space against the road triangle mesh.
-let trackDistance = 0;
-const EngineAPI=window.PlayCarPhysicsEngine;
-const surfaceTriangles=EngineAPI.TriangleMesh.fromBufferGeometry(trackSurfaceMesh.geometry,null,8);
-scene.updateMatrixWorld(true);
-// Keep the road mesh in both the wheel-support query and the solid-body collider list.
-// No air-wall meshes are created or registered: the car should be supported by the road,
-// not blocked by invisible or overhead barrier geometry.
-const staticColliderMeshes=[];
-scene.traverse(obj=>{
-  if(obj.isMesh&&obj.userData&&obj.userData.physicsCollider&&obj.geometry){
-    staticColliderMeshes.push(EngineAPI.TriangleMesh.fromBufferGeometry(obj.geometry,obj.matrixWorld.elements,4));
-  }
-});
-// The road uses wheel/suspension contacts plus dedicated chassis penetration resolution.
-// Treating a zero-thickness road as a body obstacle creates false wall impacts,
-// especially on banked sections and the vertical loop.
-const physics=new EngineAPI.PlayCarPhysicsEngine({
-  surfaceMesh:surfaceTriangles,
-  colliderMeshes:staticColliderMeshes,
-  groundPlaneY:-18,
-  frameAt:hit=>{
-    const i=Math.floor(hit.triangleIndex/2)%N,t=tangents[i];
-    return {index:i,tangent:{x:t.x,y:t.y,z:t.z}};
-  }
-});
-[0,Math.floor(N*.5),Math.floor(N*.75)].forEach((idx,n)=>{
-  const p=samples[idx],t=tangents[idx];
-  physics.addCheckpoint({id:['start','checkpoint-1','checkpoint-2'][n],
-    position:{x:p.x,y:p.y+.12,z:p.z},forward:{x:t.x,y:t.y,z:t.z},radius:TRACK_WIDTH});
-});
-function update(dt){
-  if(running&&!paused){
-    physics.advance(dt,{left:keys.left,right:keys.right,throttle:keys.gas?1:0,brake:keys.brake?1:0,handbrake:keys.hand?1:0});
-    elapsed=(performance.now()-startedAt)/1000;
-    const world=physics.state.position;
-    nearestIndex=findRoadPosition(world.x,world.z,world.y);
-    const nowProgress=nearestIndex/N;
-    if(previousProgress>.82&&nowProgress<.18){
-      lap++;
-      if(lap>3){
-        running=false;
-        physics.state.velocity={x:0,y:0,z:0};physics.previousState.velocity={x:0,y:0,z:0};speed=0;
-        if(!best||elapsed<best){best=elapsed;localStorage.setItem('polyrush-best',best);$('best').textContent=fmt(best)}
-        $('overlay').classList.remove('hidden');
-        $('overlay').querySelector('.eyebrow').textContent='FINISH · PERSONAL TIME';
-        $('overlay').querySelector('h1').innerHTML='RACE <em>COMPLETE</em>';
-        $('overlay').querySelector('p').textContent='完赛时间 '+fmt(elapsed)+'。再跑一圈，挑战你的个人纪录！';
-        $('start').textContent='再跑一次　→';lap=3;
-      }
-    }
-    previousProgress=nowProgress;progress=nowProgress;
-    speed=V3length(physics.state.velocity);
-    $('speed').textContent=String(Math.round(speed*2.4)).padStart(3,'0');
-    $('time').textContent=fmt(elapsed);
-    $('bar').style.width=(progress*100)+'%';
-    $('progressText').textContent='LAP '+String(Math.min(lap,3)).padStart(2,'0')+' / 03';
-  }
-  updateWeather(dt);
-  const rs=physics.interpolatedState();
-  car.position.set(rs.position.x,rs.position.y,rs.position.z);
-  car.quaternion.set(rs.orientation.x,rs.orientation.y,rs.orientation.z,rs.orientation.w);
-  const p=car.position.clone(),forward=new THREE.Vector3(0,0,-1).applyQuaternion(car.quaternion).normalize();
-  let desired,look;
-  if(camMode===0){desired=p.clone().addScaledVector(forward,-11-speed*.035);desired.y+=5.2+speed*.015;look=p.clone().addScaledVector(forward,7);look.y+=1.2}
-  else{desired=p.clone().add(new THREE.Vector3(0,22,0));look=p.clone()}
-  camera.position.lerp(desired,1-Math.exp(-dt*4.2));camera.lookAt(look);
+function loop(now){
+ const dt=Math.min((now-last)/1000,.04);last=now;
+ if(running){physics.advance(dt,{gas:keys.gas,brake:keys.brake,left:keys.left,right:keys.right});updateUI();}
+ requestAnimationFrame(loop);
 }
-function V3length(v){return Math.sqrt(v.x*v.x+v.y*v.y+v.z*v.z)}
-function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-last)/1000,.04);last=now;update(dt);renderer.render(scene,camera)}requestAnimationFrame(animate);
-function start(){reset();running=true;paused=false;$('pause').textContent='Ⅱ 暂停';$('overlay').classList.add('hidden')}
-$('weatherToggle').addEventListener('click',()=>applyWeather(weatherIndex+1));applyWeather(0);
-$('start').addEventListener('click',start);$('restart').addEventListener('click',()=>{reset();running=true;paused=false});$('pause').addEventListener('click',()=>{if(!running)return;paused=!paused;if(!paused)startedAt=performance.now()-elapsed*1000;$('pause').textContent=paused?'▶ 继续':'Ⅱ 暂停'});$('camera').addEventListener('click',()=>{camMode=(camMode+1)%2;$('camera').textContent=camMode?'相机：俯视':'相机：追尾'});
-addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(['arrowup','arrowdown','arrowleft','arrowright',' ','w','a','s','d'].includes(k))e.preventDefault();if(k==='arrowup'||k==='w')keys.gas=true;if(k==='arrowdown'||k==='s')keys.brake=true;if(k==='arrowleft'||k==='a')keys.left=true;if(k==='arrowright'||k==='d')keys.right=true;if(k===' ')keys.hand=true;if(k==='r'){if(!physics.resetToCheckpoint())$('restart').click()}if(k==='c')$('camera').click();if(k==='escape')$('pause').click()},{passive:false});addEventListener('keyup',e=>{const k=e.key.toLowerCase();if(k==='arrowup'||k==='w')keys.gas=false;if(k==='arrowdown'||k==='s')keys.brake=false;if(k==='arrowleft'||k==='a')keys.left=false;if(k==='arrowright'||k==='d')keys.right=false;if(k===' ')keys.hand=false});
-document.querySelectorAll('.touchbtn').forEach(el=>{const key=el.dataset.key;const on=e=>{e.preventDefault();try{if(el.setPointerCapture)el.setPointerCapture(e.pointerId)}catch(_){}keys[key]=true;el.classList.add('active')},off=e=>{if(e&&e.preventDefault)e.preventDefault();keys[key]=false;el.classList.remove('active')};el.addEventListener('pointerdown',on);el.addEventListener('pointerup',off);el.addEventListener('pointercancel',off);el.addEventListener('lostpointercapture',off)});
-addEventListener('blur',()=>{Object.keys(keys).forEach(k=>keys[k]=false);document.querySelectorAll('.touchbtn').forEach(el=>el.classList.remove('active'))});addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.7))});
-camera.position.set(0,16,28);camera.lookAt(0,0,0);reset();
+function bindHold(id,key){
+ const el=$(id),on=e=>{e.preventDefault();keys[key]=true;try{el.setPointerCapture(e.pointerId)}catch(_){}},off=e=>{if(e)e.preventDefault();keys[key]=false};
+ el.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(type=>el.addEventListener(type,off));
+}
+[['throttle','gas'],['brake','brake'],['steer-left','left'],['steer-right','right']].forEach(([id,key])=>bindHold(id,key));
+addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();if(e.key==='ArrowUp'||e.key.toLowerCase()==='w')keys.gas=true;if(e.key==='ArrowDown'||e.key.toLowerCase()==='s')keys.brake=true;if(e.key==='ArrowLeft'||e.key.toLowerCase()==='a')keys.left=true;if(e.key==='ArrowRight'||e.key.toLowerCase()==='d')keys.right=true;},{passive:false});
+addEventListener('keyup',e=>{if(e.key==='ArrowUp'||e.key.toLowerCase()==='w')keys.gas=false;if(e.key==='ArrowDown'||e.key.toLowerCase()==='s')keys.brake=false;if(e.key==='ArrowLeft'||e.key.toLowerCase()==='a')keys.left=false;if(e.key==='ArrowRight'||e.key.toLowerCase()==='d')keys.right=false;});
+addEventListener('blur',()=>{keys={gas:false,brake:false,left:false,right:false};});
+$('reset-car').addEventListener('click',()=>{reset();updateUI();});
+$('pitch-test').addEventListener('click',()=>{reset({x:0,y:5,z:0});physics.state.orientation=Q.axis(V.make(1,0,0),-.5);physics.previousState={...physics.state,position:{...physics.state.position},velocity:{...physics.state.velocity},orientation:{...physics.state.orientation}};updateUI();});
+$('wind').addEventListener('input',()=>{$('wind-value').textContent=$('wind').value;physics.setWeather({wind:{x:Number($('wind').value)*.12,z:0},wetness:Number($('wetness').value)/100});});
+$('wetness').addEventListener('input',()=>{$('wetness-value').textContent=$('wetness').value+'%';physics.setWeather({wind:{x:Number($('wind').value)*.12,z:0},wetness:Number($('wetness').value)/100});});
+function assert(condition,message){if(!condition)throw new Error(message);}
+function runSimulation(e,seconds,input){const frame=1/60,steps=Math.ceil(seconds/frame);for(let i=0;i<steps;i++)e.advance(frame,input||{});}
+function createTestEngine(position={x:0,y:.04,z:0}){return new Engine({surfaceMesh:surface,position});}
+function pitchError(e){return Math.abs(Math.asin(V.clamp(Q.rotate(e.state.orientation,V.make(0,0,-1)).y,-1,1)));}
+function addResult(name,ok,detail){const row=document.createElement('div');row.className='result '+(ok?'pass':'fail');const dot=document.createElement('i');dot.className='dot';const body=document.createElement('div');const title=document.createElement('b');title.textContent=(ok?'PASS · ':'FAIL · ')+name;const desc=document.createElement('span');desc.textContent=detail;body.append(title,desc);row.append(dot,body);$('test-results').append(row);}
+function runTests(){
+ $('test-results').replaceChildren();const cases=[
+  ['引擎加载与版本',()=>{assert(API.version==='1.5.0','期望版本 1.5.0，实际 '+API.version);return '版本 '+API.version;}],
+  ['平面三角网格',()=>{const e=createTestEngine();runSimulation(e,.3,{});assert(e.state.position.y>-.2,'车辆位置异常');assert(stateFinite(e),'状态出现非有限数值');return '位置与网格碰撞状态有效。';}],
+  ['油门加速',()=>{const e=createTestEngine();runSimulation(e,1,{gas:true});const speed=V.len(e.state.velocity);assert(speed>.5,'加速后速度过低：'+speed);assert(stateFinite(e),'加速后状态不是有限值');return '1 秒后速度 '+speed.toFixed(2)+' units/s';}],
+  ['刹车减速',()=>{const e=createTestEngine();runSimulation(e,1,{gas:true});const before=V.len(e.state.velocity);runSimulation(e,.5,{brake:true});const after=V.len(e.state.velocity);assert(after<before,'刹车没有降低速度：'+before.toFixed(2)+' → '+after.toFixed(2));return before.toFixed(2)+' → '+after.toFixed(2)+' units/s';}],
+  ['空中俯仰自动回正',()=>{const e=createTestEngine({x:0,y:5,z:0});e.state.orientation=Q.axis(V.make(1,0,0),-.5);e.previousState={...e.state,position:{...e.state.position},velocity:{...e.state.velocity},orientation:{...e.state.orientation}};const before=pitchError(e);runSimulation(e,.5,{});const after=pitchError(e);assert(after<before,'俯仰误差未减小：'+before.toFixed(3)+' → '+after.toFixed(3));return '俯仰误差 '+before.toFixed(3)+' → '+after.toFixed(3)+' rad';}],
+  ['长时间步进数值稳定',()=>{const e=createTestEngine();for(let i=0;i<1200;i++)e.advance(1/60,{gas:i<300, left:i%240<60, brake:i>900});assert(stateFinite(e),'检测到 NaN / Infinity');assert(Number.isFinite(e.debugSnapshot().physicsMs),'物理耗时不是有限值');return '1200 帧状态数值全部有限。';}]
+ ];
+ let passed=0;for(const [name,fn] of cases){try{const detail=fn();passed++;addResult(name,true,detail);}catch(err){addResult(name,false,err.message);}}
+ const summary=document.createElement('div');summary.className='result '+(passed===cases.length?'pass':'fail');const dot=document.createElement('i');dot.className='dot';const body=document.createElement('div');const b=document.createElement('b');b.textContent=passed+'/'+cases.length+' 项通过';const span=document.createElement('span');span.textContent='此结果来自当前浏览器内的即时测试。';body.append(b,span);summary.append(dot,body);$('test-results').prepend(summary);
+}
+$('run-tests').addEventListener('click',runTests);
+$('clear-results').addEventListener('click',()=>$('test-results').replaceChildren());
+if(!CanvasRenderingContext2D.prototype.roundRect){CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){this.rect(x,y,w,h);return this;};}
+updateUI();requestAnimationFrame(loop);
 })();
-</script></body></html>
+</script>
+</body>
+</html>
