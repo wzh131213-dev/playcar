@@ -192,7 +192,7 @@
     wheelbaseHalf:1.35,trackHalfWidth:.78,wheelProbeY:.07,
     suspensionRestLength:.09,suspensionReach:.9,contactPositionGain:1,
     collisionRestitution:.16,collisionFriction:.42,
-    bodyHalfExtents:{x:1.05,y:.84,z:2.1},bodyCenterY:.84,
+    bodyHalfExtents:{x:1.05,y:.9,z:2.1},bodyCenterY:.84,
     maxCollisionIterations:3
   };
 
@@ -432,7 +432,7 @@
     }
   }
 
-  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.0.5'};
+  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.0.6'};
   root.PlayCarPhysicsEngine=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
