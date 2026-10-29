@@ -192,3 +192,14 @@ test('wet road reduces tire grip and increases retained side slip',()=>{
   const dry=makeEngine(),wet=makeEngine();dry.state.velocity={x:8,y:0,z:-12};wet.state.velocity={x:8,y:0,z:-12};wet.setWeather({wetness:1});
   runFor(dry,.5,{},60);runFor(wet,.5,{});assert.ok(Math.abs(wet.state.velocity.x)>Math.abs(dry.state.velocity.x),'wet tires should retain more lateral slip');finiteState(wet);
 });
+
+
+test('game HTML never updates removed debug panel elements in the render loop',()=>{
+  const fs=require('node:fs');
+  const html=fs.readFileSync(require('node:path').join(__dirname,'..','index.html'),'utf8');
+  for(const id of ['debugSpeed','debugVertical','debugGrip','debugGrounded','debugCollision','debugMs','debugTick','debugEvents','debugDropped']){
+    assert.equal(html.includes("$('"+id+"')"),false,'render loop must not access removed #'+id);
+  }
+  assert.match(html,/function animate\(now\)[\s\S]*?update\(dt\);renderer\.render\(scene,camera\)/);
+  assert.match(html,/function updateWeather\(dt\)/);
+});
