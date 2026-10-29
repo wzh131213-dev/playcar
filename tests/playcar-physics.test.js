@@ -74,6 +74,15 @@ test('road is solid through wheel support without false body-wall collisions',()
   assert.ok(e.state.position.y>-.12,'wheel support must prevent the car from falling through the road');
   finiteState(e);
 });
+test('solid chassis collision prevents the body from passing through the road',()=>{
+  const e=new Engine({surfaceMesh:rectangleSurface(),colliderMeshes:[],position:{x:0,y:-.4,z:0}});
+  const before=e.state.position.y;
+  assert.equal(e._resolveSurfacePenetration(),true,'the chassis should detect road penetration');
+  assert.ok(e.state.position.y>before+.3,'surface collision should push the chassis back above the road');
+  assert.ok(e.state.position.y>-.05,'the chassis should not remain below the road surface');
+  assert.equal(e.state.totalCollisionEvents,0,'road contact should not be reported as a wall collision');
+  finiteState(e);
+});
 test('a falling car contacts the road and recovers from a landing',()=>{
   const e=makeEngine();e.state.position.y=2;e.state.velocity={x:0,y:-12,z:0};
   runFor(e,.75,{},60);
