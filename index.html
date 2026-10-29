@@ -119,6 +119,11 @@ scene.traverse(obj=>{
     staticColliderMeshes.push(EngineAPI.TriangleMesh.fromBufferGeometry(obj.geometry,obj.matrixWorld.elements,4));
   }
 });
+// The visible grass plane is also a collider, so cars that leave the track can land on it.
+const groundY=-18,groundSize=550;
+const ga={x:-groundSize,y:groundY,z:-groundSize},gb={x:-groundSize,y:groundY,z:groundSize},
+      gc={x:groundSize,y:groundY,z:groundSize},gd={x:groundSize,y:groundY,z:-groundSize};
+staticColliderMeshes.unshift(EngineAPI.TriangleMesh.fromTriangles([[ga,gb,gc],[ga,gc,gd]],8));
 // The road uses wheel/suspension contacts plus dedicated chassis penetration resolution.
 // Treating a zero-thickness road as a body obstacle creates false wall impacts,
 // especially on banked sections and the vertical loop.
