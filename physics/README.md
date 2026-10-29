@@ -1,4 +1,4 @@
-# PlayCar Physics Engine 1.6.0
+# PlayCar Physics Engine 1.7.0
 
 A dependency-free, browser-first 3D vehicle handling engine. Rendering, input devices, track authoring, and game rules stay in the host game; this package owns vehicle motion and track-contact queries.
 
@@ -28,7 +28,7 @@ This is a configurable **simcade** model, not a validated tire/vehicle homologat
 Load the engine before your game code:
 
 ```html
-<script src="./physics/playcar-physics-engine.js?v=1.6.0"></script>
+<script src="./physics/playcar-physics-engine.js?v=1.7.0"></script>
 <script>
   const { PlayCarPhysicsEngine, TriangleMesh } = window.PlayCarPhysicsEngine;
 
