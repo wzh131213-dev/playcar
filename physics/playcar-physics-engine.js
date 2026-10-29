@@ -198,16 +198,34 @@
     maxCollisionIterations:3
   };
 
+  // Profiles tune handling feel; all units remain game-world units unless the host
+  // deliberately chooses a metre-based scale and configures the matching values.
+  const PRESETS={
+    arcade:{engineAcceleration:34,brakeAcceleration:64,tireGrip:4.2,handbrakeGrip:4.2,
+      maxSteerAngle:.55,highSpeedSteerScale:.58,rollingResistance:.18,aerodynamicDrag:.0018,
+      airYawRate:.72,airPitchStability:2.2},
+    simcade:{},
+    simulation:{gravity:9.81,maxSpeed:70,engineAcceleration:12,brakeAcceleration:24,
+      rollingResistance:.06,aerodynamicDrag:.004,tireGrip:1.25,handbrakeGrip:1.25,
+      maxSteerAngle:.42,highSpeedSteerScale:.32,downforceCoefficient:.0009,maxDownforce:8,
+      airYawRate:.3,airPitchRate:.28,airRollRate:.38,airPitchStability:1.1,
+      collisionRestitution:.08,collisionFriction:.55}
+  };
+
   class PlayCarPhysicsEngine {
     constructor(options={}){
-      this.config=Object.assign({},DEFAULTS,options.config||{});
-      this.config.bodyHalfExtents=Object.assign({},DEFAULTS.bodyHalfExtents,(options.config||{}).bodyHalfExtents||{});
+      const presetName=typeof options.preset==='string'&&PRESETS[options.preset]?options.preset:'simcade';
+      this.preset=presetName;
+      this.config=Object.assign({},DEFAULTS,PRESETS[presetName],options.config||{});
+      this.config.bodyHalfExtents=Object.assign({},DEFAULTS.bodyHalfExtents,PRESETS[presetName].bodyHalfExtents||{},(options.config||{}).bodyHalfExtents||{});
       this.surfaceMesh=options.surfaceMesh||null;
       this.groundPlaneY=Number.isFinite(options.groundPlaneY)?options.groundPlaneY:null;
-      this.colliderMeshes=options.colliderMeshes||[];
+      this.colliderMeshes=Array.isArray(options.colliderMeshes)?options.colliderMeshes.slice():[];
       this.frameAt=typeof options.frameAt==='function'?options.frameAt:null;
       this.weather={wind:{x:0,z:0},wetness:0};
       this.accumulator=0;this.tick=0;this.droppedTime=0;this.lastStepMs=0;this.totalStepMs=0;
+      this.lastInput=this._normalizeInput({});
+      this.telemetry={longitudinalSpeed:0,lateralSpeed:0,slipAngle:0,downforce:0,airborne:false,wheelContacts:0};
       this.checkpoints=[];this.currentCheckpointIndex=0;
       this.state={position:V.make(0,0,0),velocity:V.make(0,0,0),orientation:Q.identity(),
         angularVelocity:V.make(0,0,0),grounded:false,contactNormal:V.make(0,1,0),collisionState:'none',
@@ -219,6 +237,54 @@
       const wind=weather.wind||{};
       this.weather={wind:{x:Number.isFinite(wind.x)?V.clamp(wind.x,-20,20):0,z:Number.isFinite(wind.z)?V.clamp(wind.z,-20,20):0},wetness:Number.isFinite(weather.wetness)?V.clamp(weather.wetness,0,1):0};
       return {...this.weather,wind:{...this.weather.wind}};
+    }
+    _normalizeInput(input={}){
+      const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
+      const bool=(value)=>value===true||value===1;
+      const throttle=V.clamp(finite(input.throttle,finite(input.accelerate,bool(input.gas)?1:0)),0,1);
+      const brake=V.clamp(finite(input.brake,0),0,1);
+      const steerAxis=finite(input.steer,finite(input.steering,NaN));
+      const steer=Number.isFinite(steerAxis)?V.clamp(steerAxis,-1,1):V.clamp((bool(input.right)?1:0)-(bool(input.left)?1:0),-1,1);
+      return {throttle,gas:throttle>0,brake,handbrake:V.clamp(finite(input.handbrake,finite(input.hand,bool(input.hand)?1:0)),0,1),
+        steer,left:steer<0,right:steer>0,pitch:V.clamp(finite(input.pitch,0),-1,1),
+        roll:V.clamp(finite(input.roll,0),-1,1),yaw:V.clamp(finite(input.yaw,0),-1,1)};
+    }
+    setInput(input={}){
+      this.lastInput=this._normalizeInput(input);
+      return {...this.lastInput};
+    }
+    update(frameDelta,input){
+      return this.advance(frameDelta,input);
+    }
+    step(frameDelta,input){
+      return this.advance(frameDelta,input);
+    }
+    setSurfaceMesh(mesh){this.surfaceMesh=mesh||null;return this;}
+    setColliderMeshes(meshes=[]){this.colliderMeshes=Array.isArray(meshes)?meshes.slice():[];return this;}
+    addColliderMesh(mesh){if(mesh&&typeof mesh.queryAABB==='function')this.colliderMeshes.push(mesh);return this;}
+    applyImpulse(impulse,worldPoint=null){
+      if(!impulse||![impulse.x,impulse.y,impulse.z].every(Number.isFinite))return false;
+      this.state.velocity=V.add(this.state.velocity,impulse);
+      if(worldPoint&&[worldPoint.x,worldPoint.y,worldPoint.z].every(Number.isFinite)){
+        const center=V.add(this.state.position,Q.rotate(this.state.orientation,V.make(0,this.config.bodyCenterY,0)));
+        const torque=V.cross(V.sub(worldPoint,center),impulse);
+        const mass=Math.max(.01,this.config.mass||1);
+        this.state.angularVelocity=V.add(this.state.angularVelocity,V.mul(torque,1/mass));
+      }
+      return true;
+    }
+    setVelocity(velocity){
+      if(!velocity||![velocity.x,velocity.y,velocity.z].every(Number.isFinite))return false;
+      this.state.velocity={x:velocity.x,y:velocity.y,z:velocity.z};return true;
+    }
+    getState(){return cloneState(this.state);}
+    getTelemetry(){
+      const s=this.state,forward=Q.rotate(s.orientation,V.make(0,0,-1)),right=Q.rotate(s.orientation,V.make(1,0,0));
+      const longitudinalSpeed=V.dot(s.velocity,forward),lateralSpeed=V.dot(s.velocity,right);
+      return {...this.telemetry,speed:V.len(s.velocity),longitudinalSpeed,lateralSpeed,
+        slipAngle:Math.atan2(lateralSpeed,Math.max(1,Math.abs(longitudinalSpeed))),
+        airborne:!s.grounded,grounded:s.grounded,verticalSpeed:s.velocity.y,
+        contactNormal:{...s.contactNormal},position:{...s.position},velocity:{...s.velocity}};
     }
     addCheckpoint(cp){
       const forward=V.norm(cp.forward||V.make(0,0,-1));
@@ -243,11 +309,12 @@
         Math.atan2(-cp.forward.x,-cp.forward.z),V.make(0,1,0));
       this.state.checkpointId=cp.id;this.previousState=cloneState(this.state);return true;
     }
-    advance(frameDelta,input={}){
+    advance(frameDelta,input){
+      const normalized=input===undefined?{...this.lastInput}:this.setInput(input);
       const dt=V.clamp(Number.isFinite(frameDelta)?frameDelta:0,0,this.config.maxFrameDelta);
       this.accumulator+=dt;let steps=0;
       while(this.accumulator+EPS>=this.config.fixedTimeStep&&steps<this.config.maxSubsteps){
-        this._fixedStep(this.config.fixedTimeStep,input);this.accumulator-=this.config.fixedTimeStep;steps++;
+        this._fixedStep(this.config.fixedTimeStep,normalized);this.accumulator-=this.config.fixedTimeStep;steps++;
       }
       if(this.accumulator>=this.config.fixedTimeStep){
         const keep=this.accumulator%this.config.fixedTimeStep;this.droppedTime+=this.accumulator-keep;this.accumulator=keep;
@@ -348,6 +415,7 @@
       }
     }
     _fixedStep(dt,input){
+      input=this._normalizeInput(input);
       const c=this.config,s=this.state,t0=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
       this.previousState=cloneState(s);
       s.collisionCount=0;
@@ -364,11 +432,11 @@
       }
       // Ground steering includes signed forward speed in yawRate below. With forward = -Z,
       // left must use a negative steer value while moving forward; air yaw uses the opposite sign.
-      const steer=V.clamp((input.right?1:0)-(input.left?1:0),-1,1);
+      const steer=input.steer;
       const airSteer=-steer;
-      const throttle=V.clamp(Number(input.throttle??(input.gas?1:0))||0,0,1);
-      const brake=V.clamp(Number(input.brake)||0,0,1);
-      const handbrake=V.clamp(Number(input.handbrake??(input.hand?1:0))||0,0,1);
+      const throttle=input.throttle;
+      const brake=input.brake;
+      const handbrake=input.handbrake;
       const fwd=Q.rotate(s.orientation,V.make(0,0,-1)),right=Q.rotate(s.orientation,V.make(1,0,0));
       const longitudinal=V.dot(s.velocity,fwd),speed=V.len(s.velocity);
       const speedRatio=V.clamp(Math.abs(longitudinal)/c.maxSpeed,0,1);
@@ -437,16 +505,16 @@
         yawRate=V.clamp(yawRate,-maxYaw,maxYaw);
         s.orientation=Q.normalize(Q.mul(Q.axis(normal,yawRate*dt),s.orientation));
       }else{
-        const airYaw=Q.axis(V.make(0,1,0),airSteer*c.airYawRate*dt);
+        const airYaw=Q.axis(V.make(0,1,0),(airSteer+input.yaw)*c.airYawRate*dt);
         s.orientation=Q.normalize(Q.mul(airYaw,s.orientation));
         const localRight=Q.rotate(s.orientation,V.make(1,0,0)),localForward=Q.rotate(s.orientation,V.make(0,0,-1));
-        const pitchInput=(input.brake?1:0)-(input.gas||input.throttle?1:0);
+        const pitchInput=(input.brake>0?input.brake:0)-(input.throttle>0?input.throttle:0)+input.pitch;
         const pitchError=Math.asin(V.clamp(localForward.y,-1,1));
         // With no deliberate pitch input, gently bring the nose back toward level.
         // Manual gas/brake pitch control remains fully available while airborne.
         const pitchRecovery=pitchInput===0?-pitchError*c.airPitchStability*dt:0;
         s.orientation=Q.normalize(Q.mul(Q.axis(localRight,pitchInput*c.airPitchRate*dt+pitchRecovery),s.orientation));
-        s.orientation=Q.normalize(Q.mul(Q.axis(localForward,airSteer*c.airRollRate*dt),s.orientation));
+        s.orientation=Q.normalize(Q.mul(Q.axis(localForward,(airSteer+input.roll)*c.airRollRate*dt),s.orientation));
       }
       // Wind is an external horizontal force; wetness reduces tire grip above.
       s.velocity.x+=this.weather.wind.x*c.windInfluence*dt;
@@ -504,6 +572,10 @@
       }
       this._updateCheckpoints(this.previousState.position,s.position);
       s.tick=++this.tick;
+      const forwardNow=Q.rotate(s.orientation,V.make(0,0,-1)),rightNow=Q.rotate(s.orientation,V.make(1,0,0));
+      const longitudinalSpeed=V.dot(s.velocity,forwardNow),lateralSpeed=V.dot(s.velocity,rightNow);
+      this.telemetry={longitudinalSpeed,lateralSpeed,slipAngle:Math.atan2(lateralSpeed,Math.max(1,Math.abs(longitudinalSpeed))),
+        downforce,airborne:!s.grounded,wheelContacts:contacts.length};
       const t1=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
       this.lastStepMs=Math.max(0,t1-t0);this.totalStepMs+=this.lastStepMs;
     }
@@ -531,7 +603,7 @@
     }
   }
 
-  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,version:'1.5.0'};
+  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,defaults:{...DEFAULTS,bodyHalfExtents:{...DEFAULTS.bodyHalfExtents}},presets:Object.fromEntries(Object.entries(PRESETS).map(([name,config])=>[name,{...config}])),version:'1.6.0'};
   root.PlayCarPhysicsEngine=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
