@@ -10,7 +10,7 @@
 <div id="progressWrap"><div id="progressText">LAP 01 / 03</div><div id="progress"><div id="bar"></div></div></div>
 <div id="hud"><div class="panel"><div class="lab">SPEED</div><div class="val" id="speed">000</div><div class="unit">KM/H</div></div><div class="panel"><div class="lab">TIME</div><div class="val" id="time">00:00.00</div><div class="unit">BEST <span id="best">--:--.--</span></div></div></div>
 <div id="bottom"><button id="restart">↻ 重置</button><button id="camera">相机：追尾</button><button id="pause">Ⅱ 暂停</button><button id="debugToggle">物理调试</button><button id="exportTelemetry">导出驾驶数据</button></div>
-<div id="physicsDebug" class="hidden">PlayCar Physics Engine 1.0
+<div id="physicsDebug" class="hidden">PlayCar Physics Engine 1.0.4 · Air Walls
 速度：<span id="debugSpeed">0.0</span> u/s
 垂直速度：<span id="debugVertical">0.0</span>
 轮胎状态：<span id="debugGrip">AIR</span>
@@ -20,9 +20,9 @@
 物理帧：<span id="debugTick">0</span> · 碰撞事件：<span id="debugEvents">0</span>
 丢弃时间：<span id="debugDropped">0.000</span>s</div>
 <div id="touch"><div class="cluster"><div class="touchbtn" data-key="left">◀</div><div class="touchbtn" data-key="right">▶</div></div><div class="cluster"><div class="touchbtn" data-key="brake">刹车</div><div class="touchbtn gas" data-key="gas">加速<small>HOLD</small></div></div></div>
-<div id="overlay"><div class="hero"><div class="eyebrow">A NEW GENERATION OF ARCADE RACING</div><h1>POLY<em>RUSH</em></h1><p>冲上高架、飞越坡道，在起伏弯道中挑战最快圈速。原创低多边形 3D 赛道，支持键盘和 iPad 触屏操作。</p><button class="primary" id="start">开始比赛　→</button><div class="keys"><span>W / ↑ 加速</span><span>S / ↓ 刹车</span><span>A D / ← → 转向</span><span>空格 手刹</span></div></div></div>
+<div id="overlay"><div class="hero"><div class="eyebrow">LONGER TRACK · POLY-STYLE AIR WALLS</div><h1>POLY<em>RUSH</em></h1><p>加宽加长的低多边形赛道、连续空气墙、坡道与垂直回环。冲出弯道也能被护墙挡住，支持键盘和 iPad 触屏操作。</p><button class="primary" id="start">开始比赛　→</button><div class="keys"><span>W / ↑ 加速</span><span>S / ↓ 刹车</span><span>A D / ← → 转向</span><span>空格 手刹</span></div></div></div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script src="./physics/playcar-physics-engine.js?v=1.0.3"></script>
+<script src="./physics/playcar-physics-engine.js?v=1.0.4"></script>
 <script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
@@ -35,7 +35,7 @@ scene.add(new THREE.HemisphereLight(0xe8f7ff,0x526b47,2.15));const sun=new THREE
 const mat=(color,roughness=.85)=>new THREE.MeshStandardMaterial({color,roughness,flatShading:true});
 const grassMat=mat(0x65a86a),roadMat=mat(0x363d49),edgeMat=mat(0xf4f3e8),redMat=mat(0xf04b3d,.45),darkMat=mat(0x17232f,.6),glassMat=new THREE.MeshStandardMaterial({color:0x83dce8,metalness:.2,roughness:.25}),tireMat=mat(0x10151c),yellowMat=mat(0xffd45a),whiteMat=mat(0xf7f8f0);
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(1100,1100),grassMat);ground.rotation.x=-Math.PI/2;ground.position.y=-18;ground.receiveShadow=true;scene.add(ground);
-let N=720;const points=[], widths=[];for(let i=0;i<N;i++){const t=i/N*Math.PI*2;const x=Math.sin(t)*90+Math.sin(3*t)*20;const z=Math.cos(t)*115+Math.sin(2*t)*18;const y=2+Math.sin(3*t+.5)*8+Math.sin(7*t)*2.5;points.push(new THREE.Vector3(x,y,z));widths.push(13)}
+let N=720;const points=[], widths=[];for(let i=0;i<N;i++){const t=i/N*Math.PI*2;const x=Math.sin(t)*125+Math.sin(3*t)*28;const z=Math.cos(t)*160+Math.sin(2*t)*25;const y=2+Math.sin(3*t+.5)*8+Math.sin(7*t)*2.5;points.push(new THREE.Vector3(x,y,z));widths.push(13)}
 const curve=new THREE.CatmullRomCurve3(points,true,'catmullrom',.28);
 let samples=curve.getPoints(N);
 // A shaped jump ramp: a rising approach, a short crest and a landing descent.
@@ -83,12 +83,40 @@ const frameUps=samples.map((p,i)=>{
 });
 const sideVectors=tangents.map((t,i)=>new THREE.Vector3().crossVectors(t,frameUps[i]).normalize());
 function roadMesh(offset,width,material,yOffset=0){const verts=[],uv=[],idx=[];for(let i=0;i<=N;i++){const j=i%N,p=samples[j],side=sideVectors[j],up=frameUps[j];const a=p.clone().addScaledVector(side,offset-width/2).addScaledVector(up,yOffset);const b=p.clone().addScaledVector(side,offset+width/2).addScaledVector(up,yOffset);verts.push(a.x,a.y,a.z,b.x,b.y,b.z);uv.push(0,i/N*80,1,i/N*80);if(i<N){const k=i*2;idx.push(k,k+1,k+2,k+1,k+3,k+2)}}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();const m=new THREE.Mesh(g,material);m.receiveShadow=true;m.castShadow=false;scene.add(m);return m}
-const trackSurfaceMesh=roadMesh(0,13,roadMat,.1);roadMesh(-6.8,.48,edgeMat,.17);roadMesh(6.8,.48,edgeMat,.17);
+const TRACK_WIDTH=19;
+const WALL_HEIGHT=4.6;
+const trackSurfaceMesh=roadMesh(0,TRACK_WIDTH,roadMat,.1);
+roadMesh(-TRACK_WIDTH/2+.24,.48,edgeMat,.17);roadMesh(TRACK_WIDTH/2-.24,.48,edgeMat,.17);
+// Continuous low-poly safety walls ("air walls") run along both edges.
+// Their actual triangle meshes are registered as physics colliders, not decoration only.
+const wallMat=new THREE.MeshStandardMaterial({color:0x20cde0,roughness:.38,metalness:.12,transparent:true,opacity:.72,side:THREE.DoubleSide});
+const wallCapMat=mat(0xf4f8ff,.42);
+function makeAirWall(sideSign){
+  const verts=[],indices=[];
+  for(let i=0;i<=N;i++){
+    const j=i%N,p=samples[j],side=sideVectors[j],up=frameUps[j];
+    const base=p.clone().addScaledVector(side,sideSign*(TRACK_WIDTH/2-.12)).addScaledVector(up,.2);
+    const top=base.clone().addScaledVector(up,WALL_HEIGHT);
+    verts.push(base.x,base.y,base.z,top.x,top.y,top.z);
+    if(i<N){const k=i*2;indices.push(k,k+1,k+2,k+1,k+3,k+2)}
+  }
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));
+  geometry.setIndex(indices);geometry.computeVertexNormals();
+  const wall=new THREE.Mesh(geometry,wallMat);
+  wall.userData.physicsCollider=true;wall.receiveShadow=true;wall.castShadow=true;
+  scene.add(wall);
+  // A bright continuous cap makes the safety barrier readable at speed.
+  const cap=roadMesh(sideSign*(TRACK_WIDTH/2-.12),.22,wallCapMat,WALL_HEIGHT+.2);
+  cap.material=wallCapMat;
+  return wall;
+}
+makeAirWall(-1);makeAirWall(1);
 const dashMat=mat(0xf8f6dd);for(let i=0;i<N;i+=8){const p=samples[i],s=sideVectors[i];const g=new THREE.BoxGeometry(.16,.045,1.6);const dash=new THREE.Mesh(g,dashMat);dash.position.set(p.x,p.y+.25,p.z);dash.rotation.y=Math.atan2(tangents[i].x,tangents[i].z);scene.add(dash)}
 // Decorative low-poly hills, trees and trackside markers
 for(let i=0;i<220;i++){const j=(i*37)%N,p=samples[j],side=sideVectors[j],sgn=i%2?1:-1,dist=18+(i*13)%45;const pos=p.clone().addScaledVector(side,sgn*dist);const h=5+(i*17)%15;const tree=new THREE.Group();const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.45,.7,h*.45,5),mat(0x76533b));trunk.position.y=h*.22;trunk.userData.physicsCollider=true;tree.add(trunk);const crown=new THREE.Mesh(new THREE.ConeGeometry(2.5+(i%3),h*.7,5),mat(i%3===0?0x2f744b:0x438b55));crown.position.y=h*.72;tree.add(crown);tree.position.set(pos.x,p.y-1,pos.z);tree.rotation.y=i*2.4;scene.add(tree)}
 // Track gantries and glowing checkpoint beacons
-function makeGate(idx,label){const p=samples[idx],tan=tangents[idx],side=sideVectors[idx],up=frameUps[idx],g=new THREE.Group();const postMat=mat(0x202b39,.4);for(const x of [-7.1,7.1]){const post=new THREE.Mesh(new THREE.BoxGeometry(.55,6,.55),postMat);post.position.set(x,3,0);post.userData.physicsCollider=true;g.add(post)}const beam=new THREE.Mesh(new THREE.BoxGeometry(14.7,.7,.65),yellowMat);beam.position.y=6;beam.userData.physicsCollider=true;g.add(beam);for(let x=-5;x<=5;x+=2.5){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.8,.22,.15),whiteMat);lamp.position.set(x,6,.38);g.add(lamp)}g.position.set(p.x,p.y,p.z);g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side,up,tan.clone().negate()));scene.add(g)}
+function makeGate(idx,label){const p=samples[idx],tan=tangents[idx],side=sideVectors[idx],up=frameUps[idx],g=new THREE.Group();const postMat=mat(0x202b39,.4);for(const x of [-TRACK_WIDTH/2-.1,TRACK_WIDTH/2+.1]){const post=new THREE.Mesh(new THREE.BoxGeometry(.55,6,.55),postMat);post.position.set(x,3,0);post.userData.physicsCollider=true;g.add(post)}const beam=new THREE.Mesh(new THREE.BoxGeometry(TRACK_WIDTH+1.7,.7,.65),yellowMat);beam.position.y=6;beam.userData.physicsCollider=true;g.add(beam);for(let x=-5;x<=5;x+=2.5){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.8,.22,.15),whiteMat);lamp.position.set(x,6,.38);g.add(lamp)}g.position.set(p.x,p.y,p.z);g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side,up,tan.clone().negate()));scene.add(g)}
 makeGate(0,'START');makeGate(Math.floor(N*.5),'CHECK');makeGate(Math.floor(N*.75),'CHECK');
 const car=new THREE.Group();const chassis=new THREE.Mesh(new THREE.BoxGeometry(2.05,.62,4.1),redMat);chassis.position.y=.72;chassis.castShadow=true;car.add(chassis);
 const nose=new THREE.Mesh(new THREE.BoxGeometry(1.72,.27,1.25),redMat);nose.position.set(0,.95,-1.35);car.add(nose);
@@ -125,7 +153,7 @@ const physics=new EngineAPI.PlayCarPhysicsEngine({
 [0,Math.floor(N*.5),Math.floor(N*.75)].forEach((idx,n)=>{
   const p=samples[idx],t=tangents[idx];
   physics.addCheckpoint({id:['start','checkpoint-1','checkpoint-2'][n],
-    position:{x:p.x,y:p.y+.12,z:p.z},forward:{x:t.x,y:t.y,z:t.z},radius:13});
+    position:{x:p.x,y:p.y+.12,z:p.z},forward:{x:t.x,y:t.y,z:t.z},radius:TRACK_WIDTH});
 });
 function update(dt){
   if(running&&!paused){
