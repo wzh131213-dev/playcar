@@ -256,7 +256,7 @@ test('game HTML requests the current physics-engine cache version',()=>{
   const path=require('node:path');
   const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
   const api=require('../physics/playcar-physics-engine.js');
-  assert.equal(api.version,'1.5.0','behavior changes must bump the engine version');
+  assert.equal(api.version,'1.6.0','behavior changes must bump the engine version');
   assert.ok(html.includes(`./physics/playcar-physics-engine.js?v=${api.version}`),
     'HTML cache-bust version must match the engine version');
 });
@@ -326,4 +326,22 @@ test('input aliases, analog brake, and invalid numeric input stay bounded',()=>{
   e.update(1/60,{throttle:NaN,brake:Infinity,steer:NaN});
   finiteState(e);
   assert.ok(V.len(e.state.velocity)<e.config.maxSpeed*1.36,'invalid input must not destabilize speed');
+});
+
+test('heightfield adapter builds queryable terrain triangles with finite heights',()=>{
+  const terrain=TriangleMesh.fromHeightfield({width:20,depth:20,segmentsX:8,segmentsZ:8,heightAt:(x,z)=>Math.sin(x*.1)*Math.cos(z*.1)},4);
+  assert.equal(terrain.triangles.length,128);
+  const hit=terrain.closestPoint({x:0,y:0,z:0},2);
+  assert.ok(hit,'generated terrain should be queryable');
+  assert.ok(Number.isFinite(hit.point.y)&&Number.isFinite(hit.normal.y),'heightfield output should be finite');
+  assert.throws(()=>TriangleMesh.fromHeightfield({width:4,depth:4,segmentsX:2,segmentsZ:2,heightAt:()=>NaN}),/finite number/);
+});
+
+test('telemetry reports speed, slip angle, contact and stable state without exposing live references',()=>{
+  const e=makeEngine();e.state.velocity={x:5,y:0,z:-12};e.advance(1/60,{});
+  const data=e.getTelemetry();
+  assert.ok(Number.isFinite(data.speed)&&Number.isFinite(data.slipAngle));
+  assert.equal(typeof data.grounded,'boolean');
+  data.position.x=123456;
+  assert.notEqual(e.state.position.x,123456,'telemetry position must be copied');
 });
