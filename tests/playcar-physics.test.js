@@ -243,9 +243,8 @@ test('game HTML requests the current physics-engine cache version',()=>{
   const fs=require('node:fs');
   const path=require('node:path');
   const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
-  const match=html.match(/playcar-physics-engine\\.js\\?v=([^"' ]+)/);
   const api=require('../physics/playcar-physics-engine.js');
-  assert.ok(match,'game HTML must include a versioned physics-engine script URL');
   assert.equal(api.version,'1.2.0','behavior changes must bump the engine version');
-  assert.equal(match[1],api.version,'HTML cache-bust version must match the engine version');
+  assert.ok(html.includes(`./physics/playcar-physics-engine.js?v=${api.version}`),
+    'HTML cache-bust version must match the engine version');
 });
