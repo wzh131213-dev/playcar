@@ -1,4 +1,4 @@
-/* PlayCar Physics Engine 1.5.0
+/* PlayCar Physics Engine 1.7.0
  * Original, dependency-free vehicle dynamics and triangle collision solver.
  * Units are game-world units; callers own rendering and track geometry.
  * No PolyTrack code, WASM, assets, or formulas are used.
@@ -651,7 +651,7 @@
     };
   }
 
-  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,createRenderAdapter,defaults:{...DEFAULTS,bodyHalfExtents:{...DEFAULTS.bodyHalfExtents}},presets:Object.fromEntries(Object.entries(PRESETS).map(([name,config])=>[name,{...config}])),version:'1.6.0'};
+  const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,createRenderAdapter,defaults:{...DEFAULTS,bodyHalfExtents:{...DEFAULTS.bodyHalfExtents}},presets:Object.fromEntries(Object.entries(PRESETS).map(([name,config])=>[name,{...config}])),version:'1.7.0'};
   root.PlayCarPhysicsEngine=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
