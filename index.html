@@ -22,7 +22,7 @@
 <div id="touch"><div class="cluster"><div class="touchbtn" data-key="left">◀</div><div class="touchbtn" data-key="right">▶</div></div><div class="cluster"><div class="touchbtn" data-key="brake">刹车</div><div class="touchbtn gas" data-key="gas">加速<small>HOLD</small></div></div></div>
 <div id="overlay"><div class="hero"><div class="eyebrow">LONGER TRACK · POLY-STYLE AIR WALLS</div><h1>POLY<em>RUSH</em></h1><p>加宽加长的低多边形赛道、连续空气墙、坡道与垂直回环。冲出弯道也能被护墙挡住，支持键盘和 iPad 触屏操作。</p><button class="primary" id="start">开始比赛　→</button><div class="keys"><span>W / ↑ 加速</span><span>S / ↓ 刹车</span><span>A D / ← → 转向</span><span>空格 手刹</span></div></div></div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script src="./physics/playcar-physics-engine.js?v=1.0.8"></script>
+<script src="./physics/playcar-physics-engine.js?v=1.0.9"></script>
 <script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
@@ -119,17 +119,13 @@ scene.traverse(obj=>{
     staticColliderMeshes.push(EngineAPI.TriangleMesh.fromBufferGeometry(obj.geometry,obj.matrixWorld.elements,4));
   }
 });
-// The visible grass plane is also a collider, so cars that leave the track can land on it.
-const groundY=-18,groundSize=550;
-const ga={x:-groundSize,y:groundY,z:-groundSize},gb={x:-groundSize,y:groundY,z:groundSize},
-      gc={x:groundSize,y:groundY,z:groundSize},gd={x:groundSize,y:groundY,z:-groundSize};
-staticColliderMeshes.unshift(EngineAPI.TriangleMesh.fromTriangles([[ga,gb,gc],[ga,gc,gd]],8));
 // The road uses wheel/suspension contacts plus dedicated chassis penetration resolution.
 // Treating a zero-thickness road as a body obstacle creates false wall impacts,
 // especially on banked sections and the vertical loop.
 const physics=new EngineAPI.PlayCarPhysicsEngine({
   surfaceMesh:surfaceTriangles,
   colliderMeshes:staticColliderMeshes,
+  groundPlaneY:-18,
   frameAt:hit=>{
     const i=Math.floor(hit.triangleIndex/2)%N,t=tangents[i];
     return {index:i,tangent:{x:t.x,y:t.y,z:t.z}};
