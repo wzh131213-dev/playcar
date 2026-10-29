@@ -389,8 +389,8 @@
       }
       let longNow=V.dot(s.velocity,fwd);
       if(brake>0){
-        if(Math.abs(longNow)>.5){
-          // Braking is a tire force, not an unlimited velocity reduction.
+        if(longNow>.5){
+          // Braking opposes forward travel; below rolling speed the same control selects reverse.
           const requested=brake*c.brakeAcceleration;
           const available=wasGrounded?tireCapacity:requested;
           const braking=Math.min(Math.abs(longNow)/dt,requested,available);
