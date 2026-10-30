@@ -1,4 +1,4 @@
-# PlayCar Rigid-Body Vehicle Physics 2.3.0
+# PlayCar Rigid-Body Vehicle Physics 2.4.0
 
 This package adds an independent rigid-body vehicle solver to the PlayCar physics branch. It is a new engine module; it does not silently replace the existing 1.8.0 simcade engine or change the current 3D lab's runtime selection.
 
@@ -63,10 +63,19 @@ Suspension contacts retain the unclamped wheel travel length so the end-stop log
 where `x = max(0, minTravel - rawLength)`. Configure `suspension.bump` (N/m) and `suspension.bumpStopRange` (m); setting `bump: 0` disables the bump stop. Per-wheel telemetry is available in `telemetry.suspension`, including raw length, compression, bump-stop compression, bump-stop force, and resulting normal load.
 
 
-## Longitudinal dynamic load transfer 2.3.0
+## Longitudinal dynamic load transfer 2.4.0
 
 The solver estimates longitudinal acceleration demand from engine wheel torque and service-brake torque, bounds it by the configured tire friction limit, and transfers normal load between the front and rear axles using the configured centre-of-mass height and wheelbase:
 
 `ΔF = m · aₓ · hCG / wheelbase`
 
 Positive acceleration transfers load rearward; braking transfers load forward. The transfer is applied to the wheel normal loads before tire-force calculation, is limited by the available axle support load to prevent negative wheel loads, and preserves the sum of the four wheel normal loads. Read the signed front-axle gain in `telemetry.loadTransfer.longitudinal` (positive means forward load transfer during braking; negative means rearward transfer during acceleration). This is a force-demand estimate, not a full suspension-geometry or measured-vehicle model.
+
+
+## Lateral cornering load transfer 2.4.0
+
+The solver estimates lateral acceleration demand from forward speed and front-wheel steering angle using a bicycle-model approximation, then redistributes normal load across the left and right wheel pairs:
+
+`ΔF_lat = m · a_y · hCG / track`
+
+Positive steering while moving forward transfers load to the left/outside wheels; reversing steering reverses the transfer. The signed amount is exposed as `telemetry.loadTransfer.lateral` (positive means left-side gain). The redistribution is applied to wheel support loads before tire-force evaluation, bounded by the available side loads, and conserves total normal load. This simplified model does not yet include a measured roll-centre/roll-stiffness suspension geometry model.
