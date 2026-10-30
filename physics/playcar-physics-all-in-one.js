@@ -82,7 +82,7 @@
   class TriangleMesh {
     constructor(triangles=[],cellSize=8){
       this.cellSize=cellSize;this.triangles=[];this.cells=new Map();
-      for(const tri of triangles)this.addTriangle(tri[0],tri[1],tri[2]);
+      for(const tri of triangles)this.addTriangle(tri[0],tri[1],tri[2],typeof tri[3]==='number'?tri[3]:(tri[3]?.friction??tri.friction??1));
     }
     static fromTriangles(triangles,cellSize=8){return new TriangleMesh(triangles,cellSize);}
     static fromHeightfield(options={},cellSize=8){
@@ -133,9 +133,10 @@
         const key=this._key(x,y,z);let bucket=this.cells.get(key);if(!bucket){bucket=[];this.cells.set(key,bucket);}bucket.push(tri.id);
       }
     }
-    addTriangle(a,b,c){
+    addTriangle(a,b,c,friction=1){
+      friction=Number.isFinite(Number(friction))?Math.max(0,Number(friction)):1;
       const face=V.norm(V.cross(V.sub(b,a),V.sub(c,a)));
-      const tri={id:this.triangles.length,a:{...a},b:{...b},c:{...c},rawNormal:face,
+      const tri={id:this.triangles.length,a:{...a},b:{...b},c:{...c},friction,rawNormal:face,
         centroid:V.mul(V.add(V.add(a,b),c),1/3),
         min:{x:Math.min(a.x,b.x,c.x),y:Math.min(a.y,b.y,c.y),z:Math.min(a.z,b.z,c.z)},
         max:{x:Math.max(a.x,b.x,c.x),y:Math.max(a.y,b.y,c.y),z:Math.max(a.z,b.z,c.z)}};
@@ -172,7 +173,7 @@
           // suspension push the car through the road and invert steering on banked sections.
           let n=tri.rawNormal;
           if(preferredNormal&&V.len2(preferredNormal)>EPS&&V.dot(n,preferredNormal)<0)n=V.mul(n,-1);
-          best={point:q,normal:n,distance:Math.sqrt(d2),signedDistance:V.dot(V.sub(p,q),n),triangleIndex:tri.id,face:tri};
+          best={point:q,normal:n,distance:Math.sqrt(d2),signedDistance:V.dot(V.sub(p,q),n),triangleIndex:tri.id,friction:tri.friction,face:tri};
         }
       }
       return best;
