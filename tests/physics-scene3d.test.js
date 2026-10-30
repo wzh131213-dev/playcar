@@ -20,7 +20,7 @@ test('3D scene module builds a renderer, perspective camera, lights and solid tr
 });
 test('3D scene provides keyboard and pointer-safe touch driving controls',()=>{
   const source=fs.readFileSync(scenePath,'utf8');
-  for(const token of ['pointerdown','pointerup','pointercancel','keydown','keyup','blur','touch-action'])
+  for(const token of ['pointerdown','pointerup','pointercancel','keydown','keyup','blur','touchAction'])
     assert.ok(source.includes(token),'missing input handling: '+token);
 });
 test('3D scene includes ramp, curved track barriers, reset and telemetry hooks',()=>{
