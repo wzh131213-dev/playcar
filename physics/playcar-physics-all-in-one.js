@@ -994,7 +994,7 @@ if(typeof module!=='undefined'&&module.exports)module.exports=root.PlayCarRigidB
     window.addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();if(e.key==='ArrowUp'||e.key.toLowerCase()==='w')input.gas=true;if(e.key==='ArrowDown'||e.key.toLowerCase()==='s')input.brake=true;if(e.key==='ArrowLeft'||e.key.toLowerCase()==='a'){input.left=true;input.steer=-1;}if(e.key==='ArrowRight'||e.key.toLowerCase()==='d'){input.right=true;input.steer=1;}},{passive:false});
     window.addEventListener('keyup',e=>{if(e.key==='ArrowUp'||e.key.toLowerCase()==='w')input.gas=false;if(e.key==='ArrowDown'||e.key.toLowerCase()==='s')input.brake=false;if(e.key==='ArrowLeft'||e.key.toLowerCase()==='a')input.left=false;if(e.key==='ArrowRight'||e.key.toLowerCase()==='d')input.right=false;if(!input.left&&!input.right)input.steer=0;});
     window.addEventListener('blur',release);
-    function resetVehicle(){vehicle.reset();vehicle.state.position={x:0,y:.08,z:34};vehicle.state.velocity={x:0,y:0,z:0};vehicle.state.orientation=Q.identity();vehicle.previousState={...vehicle.state,position:{...vehicle.state.position},velocity:{...vehicle.state.velocity},orientation:{...vehicle.state.orientation}};release();}
+    function resetVehicle(){vehicle.reset({x:0,y:.08,z:34});release();}
     document.getElementById('scene-reset')?.addEventListener('click',resetVehicle);
     let follow=true;
     document.getElementById('scene-follow')?.addEventListener('click',e=>{follow=!follow;e.currentTarget.textContent=follow?'跟随视角：开':'跟随视角：关';});
@@ -1005,7 +1005,7 @@ if(typeof module!=='undefined'&&module.exports)module.exports=root.PlayCarRigidB
     function render(){
      requestAnimationFrame(render);const dt=Math.min(clock.getDelta(),.05);vehicle.advance(dt,input);
      const wheelState=vehicle.getWheelState();const pose=vehicle.interpolatedState();carRoot.position.set(pose.position.x,pose.position.y,pose.position.z);carRoot.quaternion.set(pose.orientation.x,pose.orientation.y,pose.orientation.z,pose.orientation.w);
-     for(const w of wheels)w.tire.rotation.x-=wheelState.omega[ix]*dt;
+     for(let wi=0;wi<wheels.length;wi++){const w=wheels[wi],ix=w.z<0?(w.pivot.position.x<0?0:1):(w.pivot.position.x<0?2:3);w.tire.rotation.x-=wheelState.omega[ix]*dt;w.pivot.rotation.y=w.z<0?wheelState.steer:0;}
      shadow.position.x=vehicle.state.position.x;shadow.position.z=vehicle.state.position.z;
      if(follow){const p=carRoot.position.clone();const back=new THREE.Vector3(0,5.2,11).applyQuaternion(carRoot.quaternion);camera.position.lerp(p.clone().add(back),.075);camera.lookAt(p.x,p.y+.65,p.z-1.2);}
      renderer.render(scene,camera);
