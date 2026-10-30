@@ -116,7 +116,7 @@ class RigidBodyVehicle{
   const s=this.state,c=this.c;
   // Wheel-supported ground plus chassis floor clamp; mesh closest-point acts as a two-sided contact query.
   if(Number.isFinite(this.groundY)){
-   const bottom=s.position.y-c.com.y-c.bodyHalf.y;
+   const bottom=s.position.y-c.bodyHalf.y;
    if(bottom<this.groundY){s.position.y+=this.groundY-bottom;if(s.velocity.y<0)s.velocity.y=0;}
   }
   if(!this.mesh?.closestPoint)return;
