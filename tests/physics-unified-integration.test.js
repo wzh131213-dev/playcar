@@ -72,7 +72,7 @@ test('all-in-one bundle exports the same Pacejka and friction-ellipse tire solve
   const source=bundle.slice(0,bundle.indexOf('(async function startPlayCar3DScene'));
   const context={console};vm.runInNewContext(source,context);
   const api=context.PlayCarRigidBody;
-  assert.equal(api.version,'2.1.0');
+  assert.equal(api.version,'2.2.0');
   assert.equal(typeof api.calculateTireForces,'function');
   const tire={mu:1,corneringStiffness:78000,pacejka:{enabled:true,B:0,C:1.3,E:.97,peak:1},frictionEllipse:{longitudinal:1,lateral:1}};
   const lateral=api.calculateTireForces(0,.18,3000,1,tire);
