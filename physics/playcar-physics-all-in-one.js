@@ -715,13 +715,14 @@ const DEFAULTS={
  suspension:{rest:.32,min:.08,max:.48,stiffness:32000,damping:4200,bump:90000},
  tire:{mu:1.08,corneringStiffness:78000,longitudinalStiffness:95000,relaxation:.04,relaxationAngle:.08,loadSensitivity:.12,referenceLoad:3000,aligningTrail:.08},
  engine:{peakTorque:280,idleRpm:900,redline:6500,finalDrive:3.9,gears:[3.2,2.1,1.5,1.18,.94,.78],efficiency:.88},
+ antiRoll:{front:8500,rear:6500},differential:{type:'open',layout:'rwd',limitedSlip:2.2},aids:{abs:true,tcs:true,absSlip:.18,tcsSlip:.22},steering:{maxAngle:.48,highSpeedScale:.42},
  brakeTorque:4200,handbrakeTorque:6500,dragArea:0.68,airDensity:1.225,downforceArea:0.0,
  restitution:.08,collisionFriction:.55,bodyHalf:{x:.88,y:.48,z:2.05},ccd:true
 };
 function clone(o){return JSON.parse(JSON.stringify(o));}
 class RigidBodyVehicle{
  constructor(options={}){
-  this.c=Object.assign({},clone(DEFAULTS),options.config||{});this.c.inertia=Object.assign({},DEFAULTS.inertia,options.config?.inertia||{});this.c.com=Object.assign({},DEFAULTS.com,options.config?.com||{});this.c.suspension=Object.assign({},DEFAULTS.suspension,options.config?.suspension||{});this.c.tire=Object.assign({},DEFAULTS.tire,options.config?.tire||{});this.c.engine=Object.assign({},DEFAULTS.engine,options.config?.engine||{});
+  this.c=Object.assign({},clone(DEFAULTS),options.config||{});this.c.inertia=Object.assign({},DEFAULTS.inertia,options.config?.inertia||{});this.c.com=Object.assign({},DEFAULTS.com,options.config?.com||{});this.c.suspension=Object.assign({},DEFAULTS.suspension,options.config?.suspension||{});this.c.tire=Object.assign({},DEFAULTS.tire,options.config?.tire||{});this.c.engine=Object.assign({},DEFAULTS.engine,options.config?.engine||{});this.c.antiRoll=Object.assign({},DEFAULTS.antiRoll,options.config?.antiRoll||{});this.c.differential=Object.assign({},DEFAULTS.differential,options.config?.differential||{});this.c.aids=Object.assign({},DEFAULTS.aids,options.config?.aids||{});this.c.steering=Object.assign({},DEFAULTS.steering,options.config?.steering||{});
   this.mesh=options.surfaceMesh||null;this.colliders=options.colliderMeshes||[];this.groundY=options.groundPlaneY??null;
   this.accumulator=0;this.gear=1;this.engineRpm=this.c.engine.idleRpm;this.tick=0;
   this.state={position:{...(options.position||{x:0,y:.65,z:0})},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};
