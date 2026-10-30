@@ -84,3 +84,30 @@ test('suspension bump-stop settings can disable and tune end-stop force',()=>{
  assert.equal(disabled.telemetry.suspension[0].bumpStopForce,0);
  assert.ok(tuned.telemetry.suspension[0].bumpStopForce>disabled.telemetry.suspension[0].bumpStopForce);
 });
+
+
+function axleLoads(engine){const n=engine.telemetry.normalLoads;return{front:n[0]+n[1],rear:n[2]+n[3],total:n.reduce((a,b)=>a+b,0)};}
+test('braking transfers tire normal load from rear axle to front axle',()=>{
+ const baseline=make(),braking=make();
+ baseline.state.velocity={x:0,y:0,z:-12};braking.state.velocity={x:0,y:0,z:-12};
+ baseline.advance(1/120,{});braking.advance(1/120,{brake:1});
+ const a=axleLoads(baseline),b=axleLoads(braking);
+ assert.ok(b.front>a.front,'braking must increase front-axle normal load');
+ assert.ok(b.rear<a.rear,'braking must reduce rear-axle normal load');
+ assert.ok(Math.abs(b.total-a.total)<1e-6,'load transfer must conserve total normal load');
+ assert.ok(braking.telemetry.loadTransfer.longitudinal>0);
+});
+test('acceleration transfers tire normal load from front axle to rear axle',()=>{
+ const baseline=make(),accelerating=make();
+ baseline.advance(1/120,{});accelerating.advance(1/120,{throttle:1});
+ const a=axleLoads(baseline),b=axleLoads(accelerating);
+ assert.ok(b.rear>a.rear,'acceleration must increase rear-axle normal load');
+ assert.ok(b.front<a.front,'acceleration must reduce front-axle normal load');
+ assert.ok(Math.abs(b.total-a.total)<1e-6,'load transfer must conserve total normal load');
+ assert.ok(accelerating.telemetry.loadTransfer.longitudinal<0);
+});
+test('longitudinal load transfer remains finite and cannot create negative wheel loads',()=>{
+ const e=make();e.state.velocity={x:0,y:0,z:-40};e.advance(1/120,{brake:1});
+ assert.ok(e.telemetry.normalLoads.every(n=>Number.isFinite(n)&&n>=0));
+ assert.ok(Number.isFinite(e.telemetry.loadTransfer.longitudinal));
+});
