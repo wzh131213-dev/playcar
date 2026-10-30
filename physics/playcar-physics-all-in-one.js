@@ -774,6 +774,11 @@ class RigidBodyVehicle{
   const torque=e.peakTorque*throttle*V.clamp(1-Math.abs(this.engineRpm-3800)/6500,.25,1);
   const totalDriveTorque=torque*e.gears[this.gear-1]*e.finalDrive*e.efficiency;
   const driveType=c.differential.type||'rwd';const driven=[0,1,2,3].filter(i=>driveType==='awd'||(driveType==='fwd'&&i<2)||(driveType!=='fwd'&&driveType!=='awd'&&i>=2));
+  const wheelDriveTorque=[0,0,0,0];
+  for(const axle of [[0,1],[2,3]]){const pair=axle.filter(i=>driven.includes(i));if(!pair.length)continue;const base=totalDriveTorque/driven.length;
+   if(pair.length===2&&['lsd','limited-slip'].includes(driveType)){const a=pair[0],b=pair[1],wa=Math.abs(s.wheelOmega[a]),wb=Math.abs(s.wheelOmega[b]),tbr=Math.max(1,Number(c.differential.limitedSlip)||1);if(Math.abs(wa-wb)<.25){wheelDriveTorque[a]=base;wheelDriveTorque[b]=base;}else{const slow=wa<wb?a:b,fast=slow===a?b:a;wheelDriveTorque[slow]=base*2*tbr/(1+tbr);wheelDriveTorque[fast]=base*2/(1+tbr);}}
+   else for(const i of pair)wheelDriveTorque[i]=base;
+  }
   const steerAngle=steer*c.steering.maxAngle*(1-(1-c.steering.highSpeedScale)*V.clamp(speed/55,0,1));
   for(const h of contacts){
    const i=h.index,rear=i>=2,front=!rear;
@@ -782,7 +787,7 @@ class RigidBodyVehicle{
    const vLong=V.dot(h.velocity,wheelForward),vLat=V.dot(h.velocity,wheelRight),omega=s.wheelOmega[i];
    const rawSlip=(omega*c.wheelRadius-vLong)/Math.max(2,Math.abs(vLong)),relax=V.clamp(dt/Math.max(.001,c.tire.relaxation),0,1);this._slipState[i]+=(rawSlip-this._slipState[i])*relax;
    let slipRatio=this._slipState[i],slipAngle=Math.atan2(vLat,Math.max(1,Math.abs(vLong)));
-   let wheelDrive=driven.includes(i)?totalDriveTorque/Math.max(1,driven.length):0;
+   let wheelDrive=wheelDriveTorque[i];
    if(c.aids.tcs&&wheelDrive>0&&slipRatio>c.aids.tcsSlip){wheelDrive*=V.clamp(c.aids.tcsSlip/Math.max(.001,slipRatio),.15,1);this.aidState.tcs=true;}
    const FxRaw=c.tire.longitudinalStiffness*slipRatio+wheelDrive/c.wheelRadius;
    const FyRaw=-c.tire.corneringStiffness*slipAngle;
@@ -794,7 +799,7 @@ class RigidBodyVehicle{
    const wheelAccel=(wheelDrive-Fx*c.wheelRadius-Math.sign(omega||vLong)*brakeTorque)/(c.wheelMass*c.wheelRadius*c.wheelRadius);
    s.wheelOmega[i]+=wheelAccel*dt;
    if(Math.abs(s.wheelOmega[i])<.5&&brake>.8)s.wheelOmega[i]=0;
-   forces.push({wheel:i,Fx,Fy,normalLoad:normalLoad[i],slipRatio,slipAngle});
+   forces.push({wheel:i,Fx,Fy,normalLoad:normalLoad[i],slipRatio,slipAngle,driveTorque:wheelDrive,brakeTorque});
   }
   // 5-6: external gravity, semi-implicit Euler, quaternion angular integration
   this._applyForce({x:0,y:-c.mass*c.gravity,z:0},V.zero(),dt);
