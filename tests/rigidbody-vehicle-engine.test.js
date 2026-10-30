@@ -26,3 +26,42 @@ test('pneumatic trail produces a finite non-zero self-aligning moment',()=>{cons
 test('reset clears transient tire slip-angle memory',()=>{const e=make();e.state.velocity={x:5,y:0,z:0};e.advance(1/120,{});e.reset({x:0,y:.3,z:0});assert.ok(e._slipAngleState.every(x=>x===0));});
 
 test('per-surface friction coefficient changes the actual tire-force limit',()=>{const build=friction=>{const base=plane();const mesh={closestPoint(...args){const hit=base.closestPoint(...args);return hit?{...hit,friction}:null;}};const e=new RigidBodyVehicle({surfaceMesh:mesh,groundPlaneY:0,position:{x:0,y:.3,z:0}});e.state.velocity={x:5,y:0,z:0};e.advance(1/120,{});return e.telemetry.forces[0];};const dry=build(1),ice=build(.2);assert.ok(ice.frictionCoefficient<dry.frictionCoefficient);assert.ok(Math.hypot(ice.Fx,ice.Fy)<Math.hypot(dry.Fx,dry.Fy));});
+
+
+test('Pacejka tire curve is nonlinear and approaches a finite lateral-force peak',()=>{
+ const {calculateTireForces}=require('../physics/rigidbody-vehicle-engine.js');
+ const tire={mu:1,corneringStiffness:78000,pacejka:{enabled:true,B:0,C:1.3,E:.97,peak:1},frictionEllipse:{longitudinal:1,lateral:1}};
+ const small=calculateTireForces(0,.025,3000,1,tire);
+ const medium=calculateTireForces(0,.18,3000,1,tire);
+ const large=calculateTireForces(0,1.1,3000,1,tire);
+ assert.ok(Math.abs(medium.FyRaw/large.FyRaw)>0.1&&Math.abs(medium.FyRaw/large.FyRaw)<0.95,'lateral force must curve toward saturation');
+ assert.ok(Math.abs(large.FyRaw)<=3000+1e-6,'Pacejka peak must respect the configured tire load limit');
+ assert.ok(Math.abs(small.FyRaw/small.slipAngle)>Math.abs(large.FyRaw/large.slipAngle),'effective cornering stiffness must fall near saturation');
+});
+
+test('Pacejka B/C/E and peak parameters change the tire force curve',()=>{
+ const {calculateTireForces}=require('../physics/rigidbody-vehicle-engine.js');
+ const base={mu:1,corneringStiffness:78000,pacejka:{enabled:true,B:0,C:1.3,E:.97,peak:1},frictionEllipse:{longitudinal:1,lateral:1}};
+ const tuned={...base,pacejka:{enabled:true,B:7,C:1.1,E:.2,peak:.65}};
+ const a=calculateTireForces(0,.35,3000,1,base),b=calculateTireForces(0,.35,3000,1,tuned);
+ assert.notEqual(a.FyRaw,b.FyRaw);
+ assert.ok(Math.abs(b.FyRaw)<=1950+1e-6);
+});
+
+test('friction ellipse couples longitudinal and lateral tire-force limits',()=>{
+ const {calculateTireForces}=require('../physics/rigidbody-vehicle-engine.js');
+ const tire={mu:1,corneringStiffness:78000,pacejka:{enabled:false},frictionEllipse:{longitudinal:1,lateral:1}};
+ const lateralOnly=calculateTireForces(0,.12,3000,1,tire);
+ const combined=calculateTireForces(2400,.12,3000,1,tire);
+ assert.ok(Math.abs(combined.Fy)<Math.abs(lateralOnly.Fy),'longitudinal force must consume lateral grip');
+ assert.ok(combined.utilization<=1+1e-9);
+ assert.ok(lateralOnly.utilization<=1+1e-9);
+});
+
+test('friction ellipse honors separate longitudinal and lateral axes',()=>{
+ const {calculateTireForces}=require('../physics/rigidbody-vehicle-engine.js');
+ const tire={mu:1,corneringStiffness:78000,pacejka:{enabled:false},frictionEllipse:{longitudinal:.7,lateral:.9}};
+ const f=calculateTireForces(5000,.1,3000,1,tire);
+ const ellipse=Math.hypot(f.Fx/(3000*.7),f.Fy/(3000*.9));
+ assert.ok(ellipse<=1+1e-9);
+});
