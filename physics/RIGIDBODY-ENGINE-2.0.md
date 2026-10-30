@@ -53,3 +53,11 @@ const vehicle = new RigidBodyVehicle({
 ```
 
 When `B` is zero, the solver derives it from cornering stiffness, `C`, and the current vertical-load friction limit. `peak` scales the Pacejka peak force. The friction ellipse couples longitudinal and lateral demand; each axis value scales that axis' available grip, and the combined normalized force is kept at or below one. The exported `calculateTireForces` helper is shared by the standalone solver and all-in-one browser bundle.
+
+## Suspension bump stops 2.2.0
+
+Suspension contacts retain the unclamped wheel travel length so the end-stop logic can detect travel beyond the minimum ride length. A progressive bump-stop force is added to the spring load:
+
+`F_bump = k_bump · x · (1 + x / range)`
+
+where `x = max(0, minTravel - rawLength)`. Configure `suspension.bump` (N/m) and `suspension.bumpStopRange` (m); setting `bump: 0` disables the bump stop. Per-wheel telemetry is available in `telemetry.suspension`, including raw length, compression, bump-stop compression, bump-stop force, and resulting normal load.
