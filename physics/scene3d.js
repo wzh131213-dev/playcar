@@ -18,7 +18,7 @@ renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.12;
 host.appendChild(renderer.domElement);
-renderer.domElement.setAttribute('aria-label','可交互三维赛车物理模拟场景');
+renderer.domElement.setAttribute('aria-label','可交互三维赛车物理模拟场景');renderer.domElement.style.touchAction='none';
 
 scene.add(new THREE.HemisphereLight(0xdceeff,0x344455,2.1));
 const sun=new THREE.DirectionalLight(0xfff1d7,3.2);sun.position.set(-35,55,25);sun.castShadow=true;
@@ -63,7 +63,6 @@ addQuad(physicsTriangles,{x:-9,y:0,z:63},{x:-9,y:0,z:-87},{x:9,y:0,z:-87},{x:9,y
 for(const x of [-9.25,9.25])createBarrier(x,62,x,-86,1.15);
 for(let z=55;z>-82;z-=8){const stripe=new THREE.Mesh(new THREE.BoxGeometry(.22,.025,3.6),mats.line);stripe.position.set(0,-.025,z);world.add(stripe);}
 createRamp();
-createBarrier(-5,-18,5,-18,.55);
 const surface=TriangleMesh.fromTriangles(physicsTriangles,6);
 const walls=TriangleMesh.fromTriangles(colliderTriangles,5);
 const vehicle=new PlayCarPhysicsEngine({surfaceMesh:surface,colliderMeshes:[walls],position:{x:0,y:.08,z:34},preset:'simcade',config:{gravity:9.81,maxSpeed:62,bodyHalfExtents:{x:.82,y:.42,z:1.55},wheelbase:2.55}});
