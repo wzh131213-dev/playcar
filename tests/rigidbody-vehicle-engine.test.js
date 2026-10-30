@@ -111,3 +111,29 @@ test('longitudinal load transfer remains finite and cannot create negative wheel
  assert.ok(e.telemetry.normalLoads.every(n=>Number.isFinite(n)&&n>=0));
  assert.ok(Number.isFinite(e.telemetry.loadTransfer.longitudinal));
 });
+
+
+test('cornering transfers normal load to the outside wheels and conserves total load',()=>{
+ const straight=make(),turning=make();
+ straight.state.velocity={x:0,y:0,z:-20};turning.state.velocity={x:0,y:0,z:-20};
+ straight.advance(1/120,{});turning.advance(1/120,{steer:1});
+ const n=axleLoads(straight).total,m=turning.telemetry.normalLoads;
+ const left=m[0]+m[2],right=m[1]+m[3];
+ assert.ok(left>right,'positive steering must load the outside (left) wheels');
+ assert.ok(Math.abs(m.reduce((a,b)=>a+b,0)-n)<1e-6,'lateral transfer must conserve total normal load');
+ assert.ok(turning.telemetry.loadTransfer.lateral>0);
+});
+test('opposite steering reverses lateral load transfer direction',()=>{
+ const left=make(),right=make();
+ for(const e of [left,right])e.state.velocity={x:0,y:0,z:-20};
+ left.advance(1/120,{steer:1});right.advance(1/120,{steer:-1});
+ assert.ok(left.telemetry.loadTransfer.lateral>0);
+ assert.ok(right.telemetry.loadTransfer.lateral<0);
+ const l=left.telemetry.normalLoads,r=right.telemetry.normalLoads;
+ assert.ok(l[0]+l[2]>l[1]+l[3]);
+ assert.ok(r[1]+r[3]>r[0]+r[2]);
+});
+test('lateral load transfer is zero without cornering demand',()=>{
+ const e=make();e.state.velocity={x:0,y:0,z:-20};e.advance(1/120,{});
+ assert.equal(e.telemetry.loadTransfer.lateral,0);
+});
