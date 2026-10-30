@@ -3,6 +3,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+const vm=require('node:vm');
 const bundle=fs.readFileSync(path.join(__dirname,'../physics/playcar-physics-all-in-one.js'),'utf8');
 
 test('single runtime embeds the rigid-body solver before scene startup',()=>{
@@ -24,3 +25,5 @@ test('render loop consumes four wheel angular velocities and front steering',()=
 test('reset sends the spawn position through the unified engine API',()=>{
   assert.match(bundle,/vehicle\.reset\(\{x:0,y:\.08,z:34\}\)/);
 });
+
+test('all-in-one browser bundle parses as valid JavaScript',()=>{assert.doesNotThrow(()=>new vm.Script(bundle));});
