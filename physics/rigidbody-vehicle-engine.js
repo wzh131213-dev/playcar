@@ -121,13 +121,15 @@ class RigidBodyVehicle{
   }
   if(!this.mesh?.closestPoint)return;
   const radius=Math.hypot(c.bodyHalf.x,c.bodyHalf.y,c.bodyHalf.z);
-  // CCD sub-samples the centre trajectory; this prevents a fast body from skipping a thin track face.
+  const q=s.orientation,axisX=Q.rotate(q,{x:1,y:0,z:0}),axisY=Q.rotate(q,{x:0,y:1,z:0}),axisZ=Q.rotate(q,{x:0,y:0,z:1});
+  // Projected OBB support radius avoids treating the whole chassis as a sphere on flat ground.
   const previous=this.previous.position,travel=V.sub(s.position,previous),distance=V.len(travel),samples=c.ccd?Math.min(32,Math.max(1,Math.ceil(distance/Math.max(.08,c.bodyHalf.y*.5)))):1;
   for(let k=0;k<=samples;k++){
    const t=k/samples,center=V.add(previous,V.mul(travel,t)),hit=this.mesh.closestPoint(center,radius,{x:0,y:1,z:0});
    if(!hit)continue;
    const n=V.norm(hit.normal||{x:0,y:1,z:0}),signed=hit.signedDistance??V.dot(V.sub(center,hit.point),n);
-   const penetration=radius-Math.abs(signed);
+   const support=Math.abs(V.dot(n,axisX))*c.bodyHalf.x+Math.abs(V.dot(n,axisY))*c.bodyHalf.y+Math.abs(V.dot(n,axisZ))*c.bodyHalf.z;
+   const penetration=support-signed;
    if(penetration>0&&V.dot(n,{x:0,y:1,z:0})>.15){
     s.position=V.add(s.position,V.mul(n,penetration));
     const vn=V.dot(s.velocity,n);if(vn<0)s.velocity=V.sub(s.velocity,V.mul(n,(1+c.restitution)*vn));
