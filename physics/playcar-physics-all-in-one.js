@@ -774,10 +774,10 @@ class RigidBodyVehicle{
   if(this.engineRpm<e.redline*.55&&this.gear>1)this.gear--;
   const torque=e.peakTorque*throttle*V.clamp(1-Math.abs(this.engineRpm-3800)/6500,.25,1);
   const totalDriveTorque=torque*e.gears[this.gear-1]*e.finalDrive*e.efficiency;
-  const driveType=c.differential.type||'rwd';const driven=[0,1,2,3].filter(i=>driveType==='awd'||(driveType==='fwd'&&i<2)||(driveType!=='fwd'&&driveType!=='awd'&&i>=2));
+  const rawDiffType=c.differential.type||'open',driveType=c.differential.layout||(['fwd','rwd','awd'].includes(rawDiffType)?rawDiffType:'rwd'),diffType=['lsd','limited-slip'].includes(rawDiffType)?'lsd':'open';const driven=[0,1,2,3].filter(i=>driveType==='awd'||(driveType==='fwd'&&i<2)||(driveType!=='fwd'&&driveType!=='awd'&&i>=2));
   const wheelDriveTorque=[0,0,0,0];
   for(const axle of [[0,1],[2,3]]){const pair=axle.filter(i=>driven.includes(i));if(!pair.length)continue;const base=totalDriveTorque/driven.length;
-   if(pair.length===2&&['lsd','limited-slip'].includes(driveType)){const a=pair[0],b=pair[1],wa=Math.abs(s.wheelOmega[a]),wb=Math.abs(s.wheelOmega[b]),tbr=Math.max(1,Number(c.differential.limitedSlip)||1);if(Math.abs(wa-wb)<.25){wheelDriveTorque[a]=base;wheelDriveTorque[b]=base;}else{const slow=wa<wb?a:b,fast=slow===a?b:a;wheelDriveTorque[slow]=base*2*tbr/(1+tbr);wheelDriveTorque[fast]=base*2/(1+tbr);}}
+   if(pair.length===2&&diffType==='lsd'){const a=pair[0],b=pair[1],wa=Math.abs(s.wheelOmega[a]),wb=Math.abs(s.wheelOmega[b]),tbr=Math.max(1,Number(c.differential.limitedSlip)||1);if(Math.abs(wa-wb)<.25){wheelDriveTorque[a]=base;wheelDriveTorque[b]=base;}else{const slow=wa<wb?a:b,fast=slow===a?b:a;wheelDriveTorque[slow]=base*2*tbr/(1+tbr);wheelDriveTorque[fast]=base*2/(1+tbr);}}
    else for(const i of pair)wheelDriveTorque[i]=base;
   }
   const steerAngle=steer*c.steering.maxAngle*(1-(1-c.steering.highSpeedScale)*V.clamp(speed/55,0,1));
@@ -811,7 +811,7 @@ class RigidBodyVehicle{
   this._solveCollisions(dt);
   const after=this._contacts();s.grounded=after.length>=2;
   this.tick++;
-  this.telemetry={tick:this.tick,contacts:after.length,normalLoads:normalLoad,forces,gear:this.gear,rpm:this.engineRpm,speed:V.len(s.velocity),downforce,absActive:this.aidState.abs,tcsActive:this.aidState.tcs,antiRoll:{front:c.antiRoll.front,rear:c.antiRoll.rear},differential:driveType,drivenWheels:[...driven]};
+  this.telemetry={tick:this.tick,contacts:after.length,normalLoads:normalLoad,forces,gear:this.gear,rpm:this.engineRpm,speed:V.len(s.velocity),downforce,absActive:this.aidState.abs,tcsActive:this.aidState.tcs,antiRoll:{front:c.antiRoll.front,rear:c.antiRoll.rear},differential:diffType,driveLayout:driveType,drivenWheels:[...driven]};
  }
  _solveCollisions(dt){
   const s=this.state,c=this.c;
