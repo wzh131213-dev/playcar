@@ -687,6 +687,189 @@
   }
 
   const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,createRenderAdapter,defaults:{...DEFAULTS,bodyHalfExtents:{...DEFAULTS.bodyHalfExtents}},presets:Object.fromEntries(Object.entries(PRESETS).map(([name,config])=>[name,{...config}])),version:'1.8.0'};
+/* PlayCar rigid-body vehicle physics 2.0.0
+ * Fixed-step 120 Hz, four independent suspension/tire contacts, rigid-body integration.
+ * SI-like units: metres, seconds, kilograms, newtons, radians.
+ */
+(function(root){
+'use strict';
+const V={
+ add:(a,b)=>({x:a.x+b.x,y:a.y+b.y,z:a.z+b.z}), sub:(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}),
+ mul:(a,s)=>({x:a.x*s,y:a.y*s,z:a.z*s}), dot:(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z,
+ cross:(a,b)=>({x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x}),
+ len:a=>Math.hypot(a.x,a.y,a.z), norm:a=>{const n=Math.hypot(a.x,a.y,a.z)||1;return{x:a.x/n,y:a.y/n,z:a.z/n};},
+ clamp:(x,a,b)=>Math.max(a,Math.min(b,x)), zero:()=>({x:0,y:0,z:0})
+};
+const Q={
+ id:()=>({x:0,y:0,z:0,w:1}), mul:(a,b)=>({x:a.w*b.x+a.x*b.w+a.y*b.z-a.z*b.y,y:a.w*b.y-a.x*b.z+a.y*b.w+a.z*b.x,z:a.w*b.z+a.x*b.y-a.y*b.x+a.z*b.w,w:a.w*b.w-a.x*b.x-a.y*b.y-a.z*b.z}),
+ norm:q=>{const n=Math.hypot(q.x,q.y,q.z,q.w)||1;return{x:q.x/n,y:q.y/n,z:q.z/n,w:q.w/n};},
+ rotate:(q,v)=>{const u={x:q.x,y:q.y,z:q.z},t=V.mul(V.cross(u,v),2);return V.add(v,V.add(V.mul(t,q.w),V.cross(u,t)));},
+ axis:(a,t)=>{const n=V.norm(a),s=Math.sin(t/2);return{x:n.x*s,y:n.y*s,z:n.z*s,w:Math.cos(t/2)};},
+ slerp:(a,b,t)=>{let d=a.x*b.x+a.y*b.y+a.z*b.z+a.w*b.w;if(d<0){b={x:-b.x,y:-b.y,z:-b.z,w:-b.w};d=-d;}if(d>.9995)return Q.norm({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t,w:a.w+(b.w-a.w)*t});const th=Math.acos(V.clamp(d,-1,1)),s=Math.sin(th),u=Math.sin((1-t)*th)/s,v=Math.sin(t*th)/s;return Q.norm({x:a.x*u+b.x*v,y:a.y*u+b.y*v,z:a.z*u+b.z*v,w:a.w*u+b.w*v});}
+};
+const DEFAULTS={
+ fixedDt:1/120,maxSubsteps:24,mass:1250,gravity:9.81,
+ inertia:{x:520,y:1450,z:1650},com:{x:0,y:.52,z:0},
+ wheelbase:2.65,track:1.56,wheelRadius:.32,wheelMass:18,
+ suspension:{rest:.32,min:.08,max:.48,stiffness:32000,damping:4200,bump:90000},
+ tire:{mu:1.08,corneringStiffness:78000,longitudinalStiffness:95000,relaxation:.04},
+ engine:{peakTorque:280,idleRpm:900,redline:6500,finalDrive:3.9,gears:[3.2,2.1,1.5,1.18,.94,.78],efficiency:.88},
+ brakeTorque:4200,handbrakeTorque:6500,dragArea:0.68,airDensity:1.225,downforceArea:0.0,
+ restitution:.08,collisionFriction:.55,bodyHalf:{x:.88,y:.48,z:2.05},ccd:true
+};
+function clone(o){return JSON.parse(JSON.stringify(o));}
+class RigidBodyVehicle{
+ constructor(options={}){
+  this.c=Object.assign({},clone(DEFAULTS),options.config||{});this.c.inertia=Object.assign({},DEFAULTS.inertia,options.config?.inertia||{});this.c.com=Object.assign({},DEFAULTS.com,options.config?.com||{});this.c.suspension=Object.assign({},DEFAULTS.suspension,options.config?.suspension||{});this.c.tire=Object.assign({},DEFAULTS.tire,options.config?.tire||{});this.c.engine=Object.assign({},DEFAULTS.engine,options.config?.engine||{});
+  this.mesh=options.surfaceMesh||null;this.colliders=options.colliderMeshes||[];this.groundY=options.groundPlaneY??null;
+  this.accumulator=0;this.gear=1;this.engineRpm=this.c.engine.idleRpm;this.tick=0;
+  this.state={position:{...(options.position||{x:0,y:.65,z:0})},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};
+  this.previous=clone(this.state);this.lastContacts=[];this.telemetry={};
+ }
+ setSurfaceMesh(mesh){this.mesh=mesh;return this;}
+ reset(position={x:0,y:.65,z:0}){this.state={position:{...position},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};this.previous=clone(this.state);this.accumulator=0;this.tick=0;}
+ _invInertiaWorld(v){const q=this.state.orientation,local=Q.rotate({x:-q.x,y:-q.y,z:-q.z,w:q.w},v),i=this.c.inertia;return Q.rotate(q,{x:local.x/i.x,y:local.y/i.y,z:local.z/i.z});}
+ _pointVelocity(r){return V.add(this.state.velocity,V.cross(this.state.angularVelocity,r));}
+ _applyForce(F,r,dt){const s=this.state;s.velocity=V.add(s.velocity,V.mul(F,dt/this.c.mass));s.angularVelocity=V.add(s.angularVelocity,V.mul(this._invInertiaWorld(V.cross(r,F)),dt));}
+ _contacts(){
+  const c=this.c,s=this.state,out=[],q=s.orientation,half=c.wheelbase/2,track=c.track/2;
+  const mounts=[[-track,-half],[track,-half],[-track,half],[track,half]];
+  for(let i=0;i<4;i++){
+   const local={x:mounts[i][0],y:-.36,z:mounts[i][1]},r=Q.rotate(q,local),origin=V.add(s.position,r);
+   const down=Q.rotate(q,{x:0,y:-1,z:0}),reach=c.suspension.max+c.wheelRadius;
+   let hit=null;
+   if(this.mesh?.closestPoint){hit=this.mesh.closestPoint(origin,reach+c.wheelRadius,{x:0,y:1,z:0});}
+   if(!hit&&Number.isFinite(this.groundY)){const dist=origin.y-this.groundY;if(dist<reach+c.wheelRadius)hit={point:{x:origin.x,y:this.groundY,z:origin.z},normal:{x:0,y:1,z:0},distance:Math.max(0,dist-c.wheelRadius),signedDistance:dist-c.wheelRadius};}
+   if(!hit)continue;
+   let n=V.norm(hit.normal||{x:0,y:1,z:0});if(V.dot(n,{x:0,y:1,z:0})<0)n=V.mul(n,-1);
+   const length=V.clamp(hit.distance-c.wheelRadius, c.suspension.min,c.suspension.max),compression=c.suspension.rest-length;
+   const point=hit.point||V.sub(origin,V.mul(n,hit.distance)),arm=V.sub(point,s.position),pv=this._pointVelocity(arm),vn=V.dot(pv,n);
+   out.push({index:i,point,normal:n,arm,compression,length,normalVelocity:vn,velocity:pv,local});
+  }
+  return out;
+ }
+ _fixed(dt,input){
+  const c=this.c,s=this.state;this.previous=clone(s);
+  const contacts=this._contacts();this.lastContacts=contacts;
+  const normalLoad=[0,0,0,0],forces=[];
+  // 1-2: wheel contact and spring/damper/bump-stop forces
+  for(const h of contacts){
+   const susp=c.suspension;let spring=susp.stiffness*h.compression-susp.damping*h.normalVelocity;
+   if(h.length<=susp.min+.002)spring+=Math.max(0,susp.min-h.length)*susp.bump;
+   const load=Math.max(0,spring);normalLoad[h.index]=load;
+   const F=V.mul(h.normal,load);this._applyForce(F,h.arm,dt);
+  }
+  const forward=Q.rotate(s.orientation,{x:0,y:0,z:-1}),right=Q.rotate(s.orientation,{x:1,y:0,z:0});
+  const speed=V.len(s.velocity),airDrag=.5*c.airDensity*c.dragArea*speed*speed;
+  if(speed>1e-5)this._applyForce(V.mul(s.velocity,-airDrag/speed),V.zero(),dt);
+  const downforce=.5*c.airDensity*c.downforceArea*speed*speed;
+  if(downforce)this._applyForce(V.mul(Q.rotate(s.orientation,{x:0,y:-1,z:0}),downforce),V.zero(),dt);
+  // 3-4: engine torque -> gearbox -> wheel torque; brakes and combined-slip tire forces
+  const throttle=V.clamp(input.throttle||0,0,1),brake=V.clamp(input.brake||0,0,1),steer=V.clamp(input.steer||0,-1,1);
+  const e=c.engine,avgWheel=s.wheelOmega.reduce((a,b)=>a+Math.abs(b),0)/4;
+  this.engineRpm=V.clamp(avgWheel*c.wheelRadius*e.finalDrive*(e.gears[this.gear-1]||1)*60/(2*Math.PI),e.idleRpm,e.redline);
+  if(this.engineRpm>e.redline*.96&&this.gear<e.gears.length)this.gear++;
+  if(this.engineRpm<e.redline*.55&&this.gear>1)this.gear--;
+  const torque=e.peakTorque*throttle*V.clamp(1-Math.abs(this.engineRpm-3800)/6500,.25,1);
+  const driveTorque=torque*e.gears[this.gear-1]*e.finalDrive*e.efficiency/2;
+  const steerAngle=steer*.48;
+  for(const h of contacts){
+   const i=h.index,rear=i>=2,front=!rear;
+   let wheelForward=forward,wheelRight=right;
+   if(front){wheelForward=V.norm(V.add(V.mul(forward,Math.cos(steerAngle)),V.mul(right,Math.sin(steerAngle))));wheelRight=V.norm(V.cross(wheelForward,h.normal));}
+   const vLong=V.dot(h.velocity,wheelForward),vLat=V.dot(h.velocity,wheelRight),omega=s.wheelOmega[i];
+   const slipRatio=(omega*c.wheelRadius-vLong)/Math.max(2,Math.abs(vLong)),slipAngle=Math.atan2(vLat,Math.max(1,Math.abs(vLong)));
+   const FxRaw=c.tire.longitudinalStiffness*slipRatio+(rear?driveTorque/c.wheelRadius:0);
+   const FyRaw=-c.tire.corneringStiffness*slipAngle;
+   const cap=c.tire.mu*normalLoad[i],mag=Math.hypot(FxRaw,FyRaw),scale=mag>cap&&mag>0?cap/mag:1;
+   const Fx=FxRaw*scale,Fy=FyRaw*scale;
+   this._applyForce(V.add(V.mul(wheelForward,Fx),V.mul(wheelRight,Fy)),h.arm,dt);
+   const brakeTorque=brake*c.brakeTorque+(input.handbrake&&rear?c.handbrakeTorque:0);
+   const wheelAccel=((rear?driveTorque:0)-Fx*c.wheelRadius-Math.sign(omega||vLong)*brakeTorque)/(c.wheelMass*c.wheelRadius*c.wheelRadius);
+   s.wheelOmega[i]+=wheelAccel*dt;
+   if(Math.abs(s.wheelOmega[i])<.5&&brake>.8)s.wheelOmega[i]=0;
+   forces.push({wheel:i,Fx,Fy,normalLoad:normalLoad[i],slipRatio,slipAngle});
+  }
+  // 5-6: external gravity, semi-implicit Euler, quaternion angular integration
+  this._applyForce({x:0,y:-c.mass*c.gravity,z:0},V.zero(),dt);
+  s.position=V.add(s.position,V.mul(s.velocity,dt));
+  const w=s.angularVelocity,omegaQ={x:w.x,y:w.y,z:w.z,w:0};
+  const dq=Q.mul(omegaQ,s.orientation);s.orientation=Q.norm({x:s.orientation.x+.5*dq.x*dt,y:s.orientation.y+.5*dq.y*dt,z:s.orientation.z+.5*dq.z*dt,w:s.orientation.w+.5*dq.w*dt});
+  // 7: positional contact recovery, normal impulse and approximate swept-body CCD
+  this._solveCollisions(dt);
+  const after=this._contacts();s.grounded=after.length>=2;
+  this.tick++;
+  this.telemetry={tick:this.tick,contacts:after.length,normalLoads:normalLoad,forces,gear:this.gear,rpm:this.engineRpm,speed:V.len(s.velocity),downforce};
+ }
+ _solveCollisions(dt){
+  const s=this.state,c=this.c;
+  // Wheel-supported ground plus chassis floor clamp; mesh closest-point acts as a two-sided contact query.
+  if(Number.isFinite(this.groundY)){
+   const bottom=s.position.y-c.bodyHalf.y;
+   if(bottom<this.groundY){s.position.y+=this.groundY-bottom;if(s.velocity.y<0)s.velocity.y=0;}
+  }
+  if(!this.mesh?.closestPoint)return;
+  const radius=Math.hypot(c.bodyHalf.x,c.bodyHalf.y,c.bodyHalf.z);
+  const q=s.orientation,axisX=Q.rotate(q,{x:1,y:0,z:0}),axisY=Q.rotate(q,{x:0,y:1,z:0}),axisZ=Q.rotate(q,{x:0,y:0,z:1});
+  // Projected OBB support radius avoids treating the whole chassis as a sphere on flat ground.
+  const previous=this.previous.position,travel=V.sub(s.position,previous),distance=V.len(travel),samples=c.ccd?Math.min(32,Math.max(1,Math.ceil(distance/Math.max(.08,c.bodyHalf.y*.5)))):1;
+  for(let k=0;k<=samples;k++){
+   const t=k/samples,center=V.add(previous,V.mul(travel,t)),hit=this.mesh.closestPoint(center,radius,{x:0,y:1,z:0});
+   if(!hit)continue;
+   const n=V.norm(hit.normal||{x:0,y:1,z:0}),signed=hit.signedDistance??V.dot(V.sub(center,hit.point),n);
+   const support=Math.abs(V.dot(n,axisX))*c.bodyHalf.x+Math.abs(V.dot(n,axisY))*c.bodyHalf.y+Math.abs(V.dot(n,axisZ))*c.bodyHalf.z;
+   const penetration=support-signed;
+   if(penetration>0&&V.dot(n,{x:0,y:1,z:0})>.15){
+    s.position=V.add(s.position,V.mul(n,penetration));
+    const vn=V.dot(s.velocity,n);if(vn<0)s.velocity=V.sub(s.velocity,V.mul(n,(1+c.restitution)*vn));
+    const tangent=V.sub(s.velocity,V.mul(n,V.dot(s.velocity,n)));s.velocity=V.sub(s.velocity,V.mul(tangent,c.collisionFriction));
+   }
+  }
+ }
+ advance(frameDelta,input={}){
+  const dt=Math.max(0,Math.min(.25,Number(frameDelta)||0));this.accumulator+=dt;let steps=0;
+  while(this.accumulator+1e-10>=this.c.fixedDt&&steps<this.c.maxSubsteps){this._fixed(this.c.fixedDt,input);this.accumulator-=this.c.fixedDt;steps++;}
+  if(this.accumulator>=this.c.fixedDt)this.accumulator%=this.c.fixedDt;
+  return{steps,alpha:V.clamp(this.accumulator/this.c.fixedDt,0,1)};
+ }
+ interpolatedState(){const a=this.previous,b=this.state,t=V.clamp(this.accumulator/this.c.fixedDt,0,1);return{position:V.add(a.position,V.mul(V.sub(b.position,a.position),t)),velocity:V.add(a.velocity,V.mul(V.sub(b.velocity,a.velocity),t)),orientation:Q.slerp(a.orientation,b.orientation,t),grounded:b.grounded};}
+}
+root.PlayCarRigidBody={RigidBodyVehicle,Vector3:V,Quaternion:Q,defaults:clone(DEFAULTS),version:'2.0.0'};
+if(typeof module!=='undefined'&&module.exports)module.exports=root.PlayCarRigidBody;
+})(typeof globalThis!=='undefined'?globalThis:this);
+
+
+  const LegacyPlayCarPhysicsEngine=PlayCarPhysicsEngine;
+  class UnifiedPlayCarPhysicsEngine extends LegacyPlayCarPhysicsEngine{
+    constructor(options={}){
+      super(options);const c=this.config,p=options.position||{x:0,y:0,z:0};
+      const cfg={fixedDt:c.fixedTimeStep,maxSubsteps:c.maxSubsteps,mass:1250,gravity:c.gravity,
+        inertia:{x:520,y:1450,z:1650},com:{x:0,y:.52,z:0},wheelbase:c.wheelbase,track:c.trackHalfWidth*2,wheelRadius:.37,
+        suspension:{rest:.32,min:.08,max:.48,stiffness:32000,damping:4200,bump:90000},
+        tire:{mu:c.tireGrip,corneringStiffness:78000,longitudinalStiffness:95000,relaxation:.04},
+        engine:{peakTorque:280,idleRpm:900,redline:6500,finalDrive:3.9,gears:[3.2,2.1,1.5,1.18,.94,.78],efficiency:.88},
+        brakeTorque:4200,handbrakeTorque:6500,dragArea:.68,airDensity:1.225,
+        restitution:c.collisionRestitution,collisionFriction:c.collisionFriction,bodyHalf:{x:c.bodyHalfExtents.x,y:.42,z:c.bodyHalfExtents.z},ccd:true};
+      this.rigidBody=new root.PlayCarRigidBody.RigidBodyVehicle({surfaceMesh:this.surfaceMesh,colliderMeshes:this.colliderMeshes,
+        groundPlaneY:this.groundPlaneY,position:{x:p.x,y:(p.y||0)+.36,z:p.z},config:cfg});
+      this.rigidBody.state.orientation={...this.state.orientation};this.rigidBody.previous.orientation={...this.state.orientation};this._syncRigidState();
+    }
+    _syncRigidState(){const r=this.rigidBody.state,s=this.state;s.position={x:r.position.x,y:r.position.y-.36,z:r.position.z};s.velocity={...r.velocity};s.orientation={...r.orientation};s.angularVelocity={...r.angularVelocity};s.grounded=!!r.grounded;s.gripState=r.grounded?(this.lastInput.handbrake>0?'DRIFT':'GRIP'):'AIR';s.tick=r.tick;this.tick=r.tick;this.telemetry={longitudinalSpeed:0,lateralSpeed:0,slipAngle:0,downforce:this.rigidBody.telemetry.downforce||0,airborne:!r.grounded,wheelContacts:this.rigidBody.telemetry.contacts||0};}
+    advance(frameDelta,input){const n=input===undefined?this.lastInput:this.setInput(input);this.rigidBody.setSurfaceMesh(this.surfaceMesh);this.rigidBody.c.tire.mu=this.config.tireGrip*(1-.42*this.weather.wetness);this.rigidBody.c.gravity=this.config.gravity;this.rigidBody.c.fixedDt=this.config.fixedTimeStep;
+      const result=this.rigidBody.advance(frameDelta,{throttle:n.throttle,brake:n.brake,steer:n.steer,handbrake:n.handbrake>0});this._syncRigidState();
+      LegacyPlayCarPhysicsEngine.prototype._applyStaticCollisions.call(this);
+      this.rigidBody.state.position={x:this.state.position.x,y:this.state.position.y+.36,z:this.state.position.z};this.rigidBody.state.velocity={...this.state.velocity};this.rigidBody.state.orientation={...this.state.orientation};
+      const t=this.getTelemetry();this.telemetry.longitudinalSpeed=t.longitudinalSpeed;this.telemetry.lateralSpeed=t.lateralSpeed;this.telemetry.slipAngle=t.slipAngle;this.telemetry.wheelContacts=this.rigidBody.telemetry.contacts||0;return result;}
+    interpolatedState(){const p=this.rigidBody.interpolatedState();return {...p,position:{x:p.position.x,y:p.position.y-.36,z:p.position.z},gripState:this.state.gripState,collisionState:this.state.collisionState,checkpointId:this.state.checkpointId,tick:p.tick};}
+    getTelemetry(){const f=Q.rotate(this.state.orientation,V.make(0,0,-1)),r=Q.rotate(this.state.orientation,V.make(1,0,0)),longitudinalSpeed=V.dot(this.state.velocity,f),lateralSpeed=V.dot(this.state.velocity,r);return {...this.telemetry,speed:V.len(this.state.velocity),longitudinalSpeed,lateralSpeed,slipAngle:Math.atan2(lateralSpeed,Math.max(1,Math.abs(longitudinalSpeed))),airborne:!this.state.grounded,grounded:this.state.grounded,verticalSpeed:this.state.velocity.y,position:{...this.state.position},velocity:{...this.state.velocity},wheelContacts:this.rigidBody.telemetry.contacts||0};}
+    getWheelState(){return {omega:[...this.rigidBody.state.wheelOmega],contacts:this.rigidBody.lastContacts.map(x=>x.index),steer:this.lastInput.steer*.48};}
+    setConfig(patch={}){const out=super.setConfig(patch);if(this.rigidBody){if(patch.tireGrip!==undefined)this.rigidBody.c.tire.mu=this.config.tireGrip*(1-.42*this.weather.wetness);if(patch.gravity!==undefined)this.rigidBody.c.gravity=this.config.gravity;}return out;}
+    setWeather(weather={}){const out=super.setWeather(weather);if(this.rigidBody)this.rigidBody.c.tire.mu=this.config.tireGrip*(1-.42*this.weather.wetness);return out;}
+    reset(position={x:0,y:0,z:0},yaw=0,up=V.make(0,1,0)){super.reset(position,yaw,up);if(this.rigidBody){this.rigidBody.reset({x:position.x,y:position.y+.36,z:position.z});this.rigidBody.state.orientation={...this.state.orientation};this.rigidBody.previous.orientation={...this.state.orientation};this._syncRigidState();}}
+    debugSnapshot(){return {...super.debugSnapshot(),solver:'rigid-body-2.0.0',rpm:this.rigidBody.engineRpm,gear:this.rigidBody.gear,wheelOmega:[...this.rigidBody.state.wheelOmega]};}
+  }
+  api.PlayCarPhysicsEngine=UnifiedPlayCarPhysicsEngine;
+
   root.PlayCarPhysicsEngine=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
@@ -821,8 +1004,8 @@
     const ro=new ResizeObserver(resize);ro.observe(host);resize();
     function render(){
      requestAnimationFrame(render);const dt=Math.min(clock.getDelta(),.05);vehicle.advance(dt,input);
-     const pose=vehicle.interpolatedState();carRoot.position.set(pose.position.x,pose.position.y,pose.position.z);carRoot.quaternion.set(pose.orientation.x,pose.orientation.y,pose.orientation.z,pose.orientation.w);
-     for(const w of wheels)w.tire.rotation.x-=dt*V.len(vehicle.state.velocity)*.9;
+     const wheelState=vehicle.getWheelState();const pose=vehicle.interpolatedState();carRoot.position.set(pose.position.x,pose.position.y,pose.position.z);carRoot.quaternion.set(pose.orientation.x,pose.orientation.y,pose.orientation.z,pose.orientation.w);
+     for(const w of wheels)w.tire.rotation.x-=wheelState.omega[ix]*dt;
      shadow.position.x=vehicle.state.position.x;shadow.position.z=vehicle.state.position.z;
      if(follow){const p=carRoot.position.clone();const back=new THREE.Vector3(0,5.2,11).applyQuaternion(carRoot.quaternion);camera.position.lerp(p.clone().add(back),.075);camera.lookAt(p.x,p.y+.65,p.z-1.2);}
      renderer.render(scene,camera);
