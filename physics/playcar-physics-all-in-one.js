@@ -300,6 +300,35 @@
       if(!velocity||![velocity.x,velocity.y,velocity.z].every(Number.isFinite))return false;
       this.state.velocity={x:velocity.x,y:velocity.y,z:velocity.z};return true;
     }
+    setConfig(patch={}) {
+      if(!patch || typeof patch!=='object' || Array.isArray(patch)) throw new TypeError('setConfig expects an object');
+      const next={...this.config};
+      for(const [key,value] of Object.entries(patch)){
+        if(key==='bodyHalfExtents'){
+          if(!value || typeof value!=='object') throw new TypeError('bodyHalfExtents must be an object');
+          const body={...next.bodyHalfExtents};
+          for(const axis of ['x','y','z']) if(value[axis]!==undefined){
+            const n=Number(value[axis]); if(!Number.isFinite(n)||n<=0) throw new RangeError('bodyHalfExtents.'+axis+' must be > 0'); body[axis]=n;
+          }
+          next.bodyHalfExtents=body; continue;
+        }
+        if(!(key in DEFAULTS)) throw new RangeError('Unknown physics parameter: '+key);
+        const n=Number(value); if(!Number.isFinite(n)) throw new TypeError(key+' must be finite');
+        if(['fixedTimeStep','maxFrameDelta','gravity','maxSpeed','wheelbase','suspensionReach','bodyCenterY'].includes(key) && n<=0) throw new RangeError(key+' must be > 0');
+        if(['maxSubsteps','maxCollisionIterations','maxSurfaceCollisionIterations'].includes(key) && (!Number.isInteger(n)||n<1)) throw new RangeError(key+' must be a positive integer');
+        next[key]=n;
+      }
+      this.config=next; return {...this.config,bodyHalfExtents:{...this.config.bodyHalfExtents}};
+    }
+    getSnapshot(){
+      return {version:'1.8.0',preset:this.preset,config:{...this.config,bodyHalfExtents:{...this.config.bodyHalfExtents}},
+        weather:{wind:{...this.weather.wind},wetness:this.weather.wetness},input:{...this.lastInput},
+        state:this.getState(),telemetry:this.getTelemetry(),debug:this.debugSnapshot(),
+        timing:{accumulator:this.accumulator,droppedTime:this.droppedTime,lastStepMs:this.lastStepMs,totalStepMs:this.totalStepMs},
+        checkpoints:this.checkpoints.map(c=>({...c,position:{...c.position},forward:{...c.forward}})),
+        currentCheckpointIndex:this.currentCheckpointIndex,colliderMeshCount:this.colliderMeshes.length,
+        surfaceTriangleCount:this.surfaceMesh?.triangles?.length||0};
+    }
     getState(){return cloneState(this.state);}
     getTelemetry(){
       const s=this.state,forward=Q.rotate(s.orientation,V.make(0,0,-1)),right=Q.rotate(s.orientation,V.make(1,0,0));
@@ -761,7 +790,17 @@
     for(const x of [-.48,.48]){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.28,.12,.08),headlightMat);lamp.position.set(x,.58,-1.55);carRoot.add(lamp);}
     const shadow=new THREE.Mesh(new THREE.CircleGeometry(1.6,32),new THREE.MeshBasicMaterial({color:0x15212b,transparent:true,opacity:.23}));shadow.rotation.x=-Math.PI/2;shadow.position.y=-.12;world.add(shadow);
     
-    const input={gas:false,brake:false,left:false,right:false};
+    const input={gas:false,brake:false,left:false,right:false,handbrake:0,pitch:0,roll:0,yaw:0};
+    const runtime={
+      engine:vehicle,input,
+      setInput(patch={}){Object.assign(input,patch);return {...input};},
+      setWeather(value={}){return vehicle.setWeather(value);},
+      setConfig(patch={}){return vehicle.setConfig(patch);},
+      reset(){resetVehicle();return vehicle.getSnapshot();},
+      snapshot(){return vehicle.getSnapshot();}
+    };
+    window.PlayCarRuntime=runtime;
+    window.dispatchEvent(new CustomEvent('playcar:ready',{detail:{version:EngineAPI.version}}));
     function release(){for(const k of Object.keys(input))input[k]=false;}
     function bindHold(button,key){
      const el=document.getElementById(button);if(!el)return;
@@ -781,7 +820,7 @@
     function resize(){const w=Math.max(1,host.clientWidth),h=Math.max(260,host.clientHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
     const ro=new ResizeObserver(resize);ro.observe(host);resize();
     function render(){
-     requestAnimationFrame(render);const dt=Math.min(clock.getDelta(),.05);vehicle.advance(dt,{gas:input.gas,brake:input.brake,left:input.left,right:input.right});
+     requestAnimationFrame(render);const dt=Math.min(clock.getDelta(),.05);vehicle.advance(dt,input);
      const pose=vehicle.interpolatedState();carRoot.position.set(pose.position.x,pose.position.y,pose.position.z);carRoot.quaternion.set(pose.orientation.x,pose.orientation.y,pose.orientation.z,pose.orientation.w);
      for(const w of wheels)w.tire.rotation.x-=dt*V.len(vehicle.state.velocity)*.9;
      shadow.position.x=vehicle.state.position.x;shadow.position.z=vehicle.state.position.z;
