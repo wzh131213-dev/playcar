@@ -206,3 +206,10 @@ The root Physics Lab now includes a Three.js-powered driving scene in `physics/s
 - Use **重置 3D 车辆** to reset the car, and toggle the follow camera to inspect the scene.
 - The physics collision mesh is generated separately from the visual Three.js meshes. Keep the render geometry and physics triangles aligned when editing the track.
 - This scene is a test environment, not a complete racing game. A network connection is required for the Three.js CDN module; the physics engine itself remains dependency-free.
+
+
+## Realistic tire grip and built-in solid ground (1.8.0)
+
+The default vehicle setup now uses metre/second-style gravity and a dimensionless dry-road tire friction coefficient near 1.0 instead of the previous arcade-scaled 3.6 value. Full-throttle acceleration and braking have been reduced to road-car ranges; the handbrake uses a lower grip coefficient to permit controlled sliding. Wetness reduces available tire grip.
+
+The 3D scene's visible grass floor is now triangulated into the same support mesh as the asphalt road and ramp, so wheel probes and chassis penetration checks can contact the entire visible ground area. A matching `groundPlaneY` fallback at the grass-floor height catches the chassis if it falls beyond sampled triangles. The road and ramp remain layered above the grass floor.
