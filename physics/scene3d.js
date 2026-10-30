@@ -36,7 +36,7 @@ const mats={
  rim:new THREE.MeshStandardMaterial({color:0x9eb4c4,metalness:.8,roughness:.25}),
 };
 const world=new THREE.Group();scene.add(world);
-const physicsTriangles=[],colliderTriangles=[];
+const physicsTriangles=[],colliderTriangles=[],groundTriangles=[];
 function addTriangle(target,a,b,c){target.push([a,b,c]);}
 function addQuad(target,a,b,c,d){addTriangle(target,a,b,c);addTriangle(target,a,c,d);}
 function meshFromTriangles(tris,material){const positions=[];for(const t of tris)for(const p of t)positions.push(p.x,p.y,p.z);const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.computeVertexNormals();const m=new THREE.Mesh(g,material);m.receiveShadow=true;m.castShadow=true;world.add(m);return m;}
@@ -65,7 +65,7 @@ for(let z=55;z>-82;z-=8){const stripe=new THREE.Mesh(new THREE.BoxGeometry(.22,.
 createRamp();
 const surface=TriangleMesh.fromTriangles(physicsTriangles,6);
 const walls=TriangleMesh.fromTriangles(colliderTriangles,5);
-const vehicle=new PlayCarPhysicsEngine({surfaceMesh:surface,colliderMeshes:[walls],position:{x:0,y:.08,z:34},preset:'simcade',config:{gravity:9.81,maxSpeed:62,bodyHalfExtents:{x:.82,y:.42,z:1.55},wheelbase:2.55}});
+const vehicle=new PlayCarPhysicsEngine({surfaceMesh:surface,colliderMeshes:[walls],groundPlaneY:-.18,position:{x:0,y:.08,z:34},preset:'simcade',config:{gravity:9.81,maxSpeed:60,engineAcceleration:5.2,brakeAcceleration:9.5,tireGrip:1.05,handbrakeGrip:.72,bodyHalfExtents:{x:.82,y:.42,z:1.55},wheelbase:2.55}});
 const carRoot=new THREE.Group();world.add(carRoot);
 const chassis=new THREE.Mesh(new THREE.BoxGeometry(1.65,.55,3.05),mats.orange);chassis.position.y=.55;chassis.castShadow=true;chassis.receiveShadow=true;carRoot.add(chassis);
 const cabin=new THREE.Mesh(new THREE.BoxGeometry(1.25,.58,1.35),mats.glass);cabin.position.set(0,1.08,-.2);cabin.castShadow=true;carRoot.add(cabin);
