@@ -36,7 +36,7 @@ test('Pacejka tire curve is nonlinear and approaches a finite lateral-force peak
  const large=calculateTireForces(0,1.1,3000,1,tire);
  assert.ok(Math.abs(medium.FyRaw/large.FyRaw)>0.1&&Math.abs(medium.FyRaw/large.FyRaw)<0.95,'lateral force must curve toward saturation');
  assert.ok(Math.abs(large.FyRaw)<=3000+1e-6,'Pacejka peak must respect the configured tire load limit');
- assert.ok(Math.abs(small.FyRaw/small.slipAngle)>Math.abs(large.FyRaw/large.slipAngle),'effective cornering stiffness must fall near saturation');
+ assert.ok(Math.abs(small.FyRaw/.025)>Math.abs(large.FyRaw/1.1),'effective cornering stiffness must fall near saturation');
 });
 
 test('Pacejka B/C/E and peak parameters change the tire force curve',()=>{
