@@ -206,16 +206,15 @@ test('wet road reduces tire grip and increases retained side slip',()=>{
 });
 
 
-test('root HTML is a physics lab page and no longer contains the racing game renderer',()=>{
+test('root HTML loads the current 3D physics control center bundle',()=>{
   const fs=require('node:fs');
-  const html=fs.readFileSync(require('node:path').join(__dirname,'..','index.html'),'utf8');
-  assert.match(html,/PlayCar Physics Lab/);
-  assert.match(html,/physics\/playcar-physics-engine\.js\?v=1\.8\.0/);
-  assert.match(html,/id="run-tests"/);
-  assert.match(html,/id="test-results"/);
-  assert.doesNotMatch(html,/POLY.?RUSH|TIME ATTACK|THREE\.js|function updateWeather\(dt\)/i);
+  const path=require('node:path');
+  const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+  assert.match(html,/<title>PlayCar · Physics Control Center<\\/title>/);
+  assert.match(html,/playcar-physics-all-in-one\\.js\\?v=2\\.0\\.0/);
+  assert.match(html,/id="scene3d"/);
+  assert.doesNotMatch(html,/POLY.?RUSH|TIME ATTACK/i);
 });
-
 test('grounded braking is limited by tire friction instead of raw brake strength',()=>{
   const e=makeEngine();
   e.state.velocity={x:0,y:0,z:-20};
