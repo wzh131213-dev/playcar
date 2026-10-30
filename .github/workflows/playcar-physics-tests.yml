@@ -18,7 +18,9 @@ jobs:
           node-version: 20
       - name: Syntax check engine
         run: node --check physics/playcar-physics-engine.js
-      - name: Syntax check 3D scene module\n        run: node --check physics/scene3d.js\n      - name: Syntax check integrated game script
+      - name: Syntax check 3D scene module
+        run: node --check physics/scene3d.js
+      - name: Syntax check integrated game script
         run: |
           python3 - <<'PY'
           from pathlib import Path
