@@ -137,3 +137,39 @@ test('lateral load transfer is zero without cornering demand',()=>{
  const e=make();e.state.velocity={x:0,y:0,z:-20};e.advance(1/120,{});
  assert.equal(e.telemetry.loadTransfer.lateral,0);
 });
+
+
+function tiltAngle(q,axis){
+ const up=V.rotate?V.rotate(q,{x:0,y:1,z:0}):require('../physics/rigidbody-vehicle-engine.js').Quaternion.rotate(q,{x:0,y:1,z:0});
+ return axis==='roll'?Math.atan2(-up.x,up.y):Math.atan2(up.z,up.y);
+}
+test('body roll spring restores chassis toward upright and damps roll rate',()=>{
+ const {Quaternion:Q}=require('../physics/rigidbody-vehicle-engine.js');
+ const e=make();
+ e.state.orientation=Q.axis({x:0,y:0,z:1},.12);
+ e.state.angularVelocity={x:0,y:0,z:.8};
+ const before=Math.abs(tiltAngle(e.state.orientation,'roll'));
+ for(let i=0;i<30;i++)e.advance(1/120,{});
+ const after=Math.abs(tiltAngle(e.state.orientation,'roll'));
+ assert.ok(after<before,'roll restoring torque must reduce chassis roll angle');
+ assert.ok(Math.abs(e.state.angularVelocity.z)<.8,'roll damping must reduce angular velocity');
+});
+test('body pitch spring restores chassis toward level and damps pitch rate',()=>{
+ const {Quaternion:Q}=require('../physics/rigidbody-vehicle-engine.js');
+ const e=make();
+ e.state.orientation=Q.axis({x:1,y:0,z:0},.12);
+ e.state.angularVelocity={x:.8,y:0,z:0};
+ const before=Math.abs(tiltAngle(e.state.orientation,'pitch'));
+ for(let i=0;i<30;i++)e.advance(1/120,{});
+ const after=Math.abs(tiltAngle(e.state.orientation,'pitch'));
+ assert.ok(after<before,'pitch restoring torque must reduce chassis pitch angle');
+ assert.ok(Math.abs(e.state.angularVelocity.x)<.8,'pitch damping must reduce angular velocity');
+});
+test('body roll and pitch stabilization can be independently tuned or disabled',()=>{
+ const {Quaternion:Q}=require('../physics/rigidbody-vehicle-engine.js');
+ const soft=new RigidBodyVehicle({groundPlaneY:0,position:{x:0,y:.3,z:0},config:{body:{rollStiffness:1000,rollDamping:100,pitchStiffness:0,pitchDamping:0}}});
+ const stiff=new RigidBodyVehicle({groundPlaneY:0,position:{x:0,y:.3,z:0},config:{body:{rollStiffness:12000,rollDamping:1000,pitchStiffness:0,pitchDamping:0}}});
+ for(const e of [soft,stiff]){e.state.orientation=Q.axis({x:0,y:0,z:1},.1);e.advance(1/120,{});}
+ assert.ok(Math.abs(tiltAngle(stiff.state.orientation,'roll'))<Math.abs(tiltAngle(soft.state.orientation,'roll')));
+ assert.equal(soft.c.body.pitchStiffness,0);
+});
