@@ -688,7 +688,7 @@
   }
 
   const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,createRenderAdapter,defaults:{...DEFAULTS,bodyHalfExtents:{...DEFAULTS.bodyHalfExtents}},presets:Object.fromEntries(Object.entries(PRESETS).map(([name,config])=>[name,{...config}])),version:'1.8.0'};
-/* PlayCar rigid-body vehicle physics 2.0.0
+/* PlayCar rigid-body vehicle physics 2.2.0
  * Fixed-step 120 Hz, four independent suspension/tire contacts, rigid-body integration.
  * SI-like units: metres, seconds, kilograms, newtons, radians.
  */
@@ -712,7 +712,7 @@ const DEFAULTS={
  fixedDt:1/120,maxSubsteps:24,mass:1250,gravity:9.81,
  inertia:{x:520,y:1450,z:1650},com:{x:0,y:.52,z:0},
  wheelbase:2.65,track:1.56,wheelRadius:.32,wheelMass:18,
- suspension:{rest:.32,min:.08,max:.48,stiffness:32000,damping:4200,bump:90000},
+ suspension:{rest:.32,min:.08,max:.48,stiffness:32000,damping:4200,bump:90000,bumpStopRange:.12},
  tire:{mu:1.08,corneringStiffness:78000,longitudinalStiffness:95000,relaxation:.04,relaxationAngle:.08,loadSensitivity:.12,referenceLoad:3000,aligningTrail:.08,pacejka:{enabled:false,B:0,C:1.3,E:.97,peak:1},frictionEllipse:{longitudinal:1,lateral:1}},
  engine:{peakTorque:280,idleRpm:900,redline:6500,finalDrive:3.9,gears:[3.2,2.1,1.5,1.18,.94,.78],efficiency:.88},
  antiRoll:{front:8500,rear:6500},differential:{type:'open',limitedSlip:2.2},aids:{abs:true,tcs:true,absSlip:.18,tcsSlip:.22},steering:{maxAngle:.48,highSpeedScale:.42},
@@ -760,21 +760,20 @@ class RigidBodyVehicle{
    if(!hit&&Number.isFinite(this.groundY)){const dist=origin.y-this.groundY;if(dist<reach+c.wheelRadius)hit={point:{x:origin.x,y:this.groundY,z:origin.z},normal:{x:0,y:1,z:0},distance:Math.max(0,dist-c.wheelRadius),signedDistance:dist-c.wheelRadius};}
    if(!hit)continue;
    let n=V.norm(hit.normal||{x:0,y:1,z:0});if(V.dot(n,{x:0,y:1,z:0})<0)n=V.mul(n,-1);
-   const length=V.clamp(hit.distance-c.wheelRadius, c.suspension.min,c.suspension.max),compression=c.suspension.rest-length;
+   const rawLength=hit.distance-c.wheelRadius,length=V.clamp(rawLength, c.suspension.min,c.suspension.max),compression=c.suspension.rest-length;
    const point=hit.point||V.sub(origin,V.mul(n,hit.distance)),arm=V.sub(point,s.position),pv=this._pointVelocity(arm),vn=V.dot(pv,n);
-   out.push({index:i,point,normal:n,arm,compression,length,normalVelocity:vn,velocity:pv,local,friction:Number.isFinite(hit.friction)?Math.max(0,hit.friction):1});
+   out.push({index:i,point,normal:n,arm,compression,length,rawLength,normalVelocity:vn,velocity:pv,local,friction:Number.isFinite(hit.friction)?Math.max(0,hit.friction):1});
   }
   return out;
  }
  _fixed(dt,input){
   const c=this.c,s=this.state;this.previous=clone(s);this.aidState={abs:false,tcs:false};
   const contacts=this._contacts();this.lastContacts=contacts;
-  const normalLoad=[0,0,0,0],forces=[];
+  const normalLoad=[0,0,0,0],forces=[],suspensionTelemetry=Array.from({length:4},(_,wheel)=>({wheel,compression:0,rawLength:null,bumpStopCompression:0,bumpStopForce:0,normalLoad:0}));
   // 1-2: wheel contact and spring/damper/bump-stop forces
   for(const h of contacts){
-   const susp=c.suspension;let spring=susp.stiffness*h.compression-susp.damping*h.normalVelocity;
-   if(h.length<=susp.min+.002)spring+=Math.max(0,susp.min-h.length)*susp.bump;
-   const load=Math.max(0,spring);normalLoad[h.index]=load;
+   const susp=c.suspension,bumpStopCompression=Math.max(0,susp.min-h.rawLength),bumpStopForce=Math.max(0,susp.bump||0)*bumpStopCompression*(1+bumpStopCompression/Math.max(.001,susp.bumpStopRange||.12)),spring=susp.stiffness*h.compression-susp.damping*h.normalVelocity+bumpStopForce;
+   const load=Math.max(0,spring);normalLoad[h.index]=load;suspensionTelemetry[h.index]={wheel:h.index,compression:h.compression,rawLength:h.rawLength,bumpStopCompression,bumpStopForce,normalLoad:load};
    const F=V.mul(h.normal,load);this._applyForce(F,h.arm,dt);
   }
   for(const [left,right,rate] of [[0,1,c.antiRoll.front],[2,3,c.antiRoll.rear]]){const a=contacts.find(h=>h.index===left),b=contacts.find(h=>h.index===right);if(a&&b&&rate>0){const transfer=(a.compression-b.compression)*rate,fa=Math.max(-normalLoad[left],transfer),fb=Math.max(-normalLoad[right],-transfer);normalLoad[left]+=fa;normalLoad[right]+=fb;this._applyForce(V.mul(a.normal,fa),a.arm,dt);this._applyForce(V.mul(b.normal,fb),b.arm,dt);}}
@@ -826,7 +825,7 @@ class RigidBodyVehicle{
   this._solveCollisions(dt);
   const after=this._contacts();s.grounded=after.length>=2;
   this.tick++;
-  this.telemetry={tick:this.tick,contacts:after.length,normalLoads:normalLoad,forces,gear:this.gear,rpm:this.engineRpm,speed:V.len(s.velocity),downforce,absActive:this.aidState.abs,tcsActive:this.aidState.tcs,antiRoll:{front:c.antiRoll.front,rear:c.antiRoll.rear},differential:diffType,driveLayout:driveType,drivenWheels:[...driven]};
+  this.telemetry={tick:this.tick,contacts:after.length,normalLoads:normalLoad,forces,suspension:suspensionTelemetry,gear:this.gear,rpm:this.engineRpm,speed:V.len(s.velocity),downforce,absActive:this.aidState.abs,tcsActive:this.aidState.tcs,antiRoll:{front:c.antiRoll.front,rear:c.antiRoll.rear},differential:diffType,driveLayout:driveType,drivenWheels:[...driven]};
  }
  _solveCollisions(dt){
   const s=this.state,c=this.c;
@@ -861,7 +860,7 @@ class RigidBodyVehicle{
  }
  interpolatedState(){const a=this.previous,b=this.state,t=V.clamp(this.accumulator/this.c.fixedDt,0,1);return{position:V.add(a.position,V.mul(V.sub(b.position,a.position),t)),velocity:V.add(a.velocity,V.mul(V.sub(b.velocity,a.velocity),t)),orientation:Q.slerp(a.orientation,b.orientation,t),grounded:b.grounded};}
 }
-root.PlayCarRigidBody={RigidBodyVehicle,Vector3:V,Quaternion:Q,calculateTireForces,defaults:clone(DEFAULTS),version:'2.1.0'};
+root.PlayCarRigidBody={RigidBodyVehicle,Vector3:V,Quaternion:Q,calculateTireForces,defaults:clone(DEFAULTS),version:'2.2.0'};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.PlayCarRigidBody;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
