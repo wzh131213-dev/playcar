@@ -1,4 +1,4 @@
-/* PlayCar rigid-body vehicle physics 2.2.0
+/* PlayCar rigid-body vehicle physics 2.3.0
  * Fixed-step 120 Hz, four independent suspension/tire contacts, rigid-body integration.
  * SI-like units: metres, seconds, kilograms, newtons, radians.
  */
@@ -100,6 +100,29 @@ class RigidBodyVehicle{
   if(this.engineRpm<e.redline*.55&&this.gear>1)this.gear--;
   const torque=e.peakTorque*throttle*V.clamp(1-Math.abs(this.engineRpm-3800)/6500,.25,1);
   const totalDriveTorque=torque*e.gears[this.gear-1]*e.finalDrive*e.efficiency;
+  // Predict longitudinal tire-force demand, then redistribute the same support load
+  // between axles before tire forces are solved. Positive transfer adds load to the rear.
+  const longitudinalSpeed=V.dot(s.velocity,forward);
+  const driveForce=totalDriveTorque/Math.max(.05,c.wheelRadius);
+  const brakeForce=longitudinalSpeed===0?0:brake*c.brakeTorque*4/Math.max(.05,c.wheelRadius)*Math.sign(longitudinalSpeed);
+  const requestedLongitudinalForce=driveForce-brakeForce;
+  const requestedAcceleration=V.clamp(requestedLongitudinalForce/c.mass,-c.tire.mu*c.gravity,c.tire.mu*c.gravity);
+  const requestedTransfer=c.mass*requestedAcceleration*Math.max(0,c.com.y)/Math.max(.1,c.wheelbase);
+  const frontContacts=contacts.filter(h=>h.index<2),rearContacts=contacts.filter(h=>h.index>=2);
+  const frontAvailable=frontContacts.reduce((sum,h)=>sum+normalLoad[h.index],0);
+  const rearAvailable=rearContacts.reduce((sum,h)=>sum+normalLoad[h.index],0);
+  const longitudinalTransfer=frontContacts.length&&rearContacts.length?V.clamp(requestedTransfer,-rearAvailable,frontAvailable):0;
+  for(const [axle,delta] of [[frontContacts,-longitudinalTransfer],[rearContacts,longitudinalTransfer]]){
+   if(!axle.length)continue;
+   const perWheel=delta/axle.length;
+   for(const h of axle){
+    normalLoad[h.index]=Math.max(0,normalLoad[h.index]+perWheel);
+    const applied=normalLoad[h.index]-suspensionTelemetry[h.index].normalLoad;
+    if(applied)this._applyForce(V.mul(h.normal,applied),h.arm,dt);
+    suspensionTelemetry[h.index].normalLoad=normalLoad[h.index];
+   }
+  }
+  const loadTransferTelemetry={longitudinal:-longitudinalTransfer};
   const rawDiffType=c.differential.type||'open',driveType=c.differential.layout||(['fwd','rwd','awd'].includes(rawDiffType)?rawDiffType:'rwd'),diffType=['lsd','limited-slip'].includes(rawDiffType)?'lsd':'open';const driven=[0,1,2,3].filter(i=>driveType==='awd'||(driveType==='fwd'&&i<2)||(driveType!=='fwd'&&driveType!=='awd'&&i>=2));
   const wheelDriveTorque=[0,0,0,0];
   for(const axle of [[0,1],[2,3]]){const pair=axle.filter(i=>driven.includes(i));if(!pair.length)continue;const base=totalDriveTorque/driven.length;
@@ -135,7 +158,7 @@ class RigidBodyVehicle{
   this._solveCollisions(dt);
   const after=this._contacts();s.grounded=after.length>=2;
   this.tick++;
-  this.telemetry={tick:this.tick,contacts:after.length,normalLoads:normalLoad,forces,suspension:suspensionTelemetry,gear:this.gear,rpm:this.engineRpm,speed:V.len(s.velocity),downforce,absActive:this.aidState.abs,tcsActive:this.aidState.tcs,antiRoll:{front:c.antiRoll.front,rear:c.antiRoll.rear},differential:diffType,driveLayout:driveType,drivenWheels:[...driven]};
+  this.telemetry={tick:this.tick,contacts:after.length,normalLoads:normalLoad,forces,suspension:suspensionTelemetry,gear:this.gear,rpm:this.engineRpm,speed:V.len(s.velocity),downforce,absActive:this.aidState.abs,tcsActive:this.aidState.tcs,antiRoll:{front:c.antiRoll.front,rear:c.antiRoll.rear},loadTransfer:loadTransferTelemetry,differential:diffType,driveLayout:driveType,drivenWheels:[...driven]};
  }
  _solveCollisions(dt){
   const s=this.state,c=this.c;
@@ -170,6 +193,6 @@ class RigidBodyVehicle{
  }
  interpolatedState(){const a=this.previous,b=this.state,t=V.clamp(this.accumulator/this.c.fixedDt,0,1);return{position:V.add(a.position,V.mul(V.sub(b.position,a.position),t)),velocity:V.add(a.velocity,V.mul(V.sub(b.velocity,a.velocity),t)),orientation:Q.slerp(a.orientation,b.orientation,t),grounded:b.grounded};}
 }
-root.PlayCarRigidBody={RigidBodyVehicle,Vector3:V,Quaternion:Q,calculateTireForces,defaults:clone(DEFAULTS),version:'2.2.0'};
+root.PlayCarRigidBody={RigidBodyVehicle,Vector3:V,Quaternion:Q,calculateTireForces,defaults:clone(DEFAULTS),version:'2.3.0'};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.PlayCarRigidBody;
 })(typeof globalThis!=='undefined'?globalThis:this);
