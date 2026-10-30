@@ -47,3 +47,23 @@ test('unified vehicle exposes limited-slip differential tuning',()=>{
   const result=engine.setDifferential('lsd','awd',3.1);
   assert.deepEqual(JSON.parse(JSON.stringify(result)),{type:'lsd',layout:'awd',limitedSlip:3.1});
 });
+
+test('embedded solver applies triangle material friction to tire forces',()=>{
+  const source=bundle.slice(0,bundle.indexOf('(async function startPlayCar3DScene'));
+  const context={console};vm.runInNewContext(source,context);
+  const mesh={closestPoint(p){return {point:{x:p.x,y:0,z:p.z},normal:{x:0,y:1,z:0},distance:Math.abs(p.y),signedDistance:p.y,friction:.2};}};
+  const Engine=context.PlayCarRigidBody.RigidBodyVehicle;
+  const engine=new Engine({surfaceMesh:mesh,groundPlaneY:0,position:{x:0,y:.3,z:0}});
+  engine.state.velocity={x:5,y:0,z:0};engine.advance(1/120,{});
+  assert.ok(engine.telemetry.forces.length>0);
+  assert.ok(engine.telemetry.forces[0].frictionCoefficient<engine.c.tire.mu);
+});
+test('embedded solver exposes the new tire dynamics configuration',()=>{
+  const source=bundle.slice(0,bundle.indexOf('(async function startPlayCar3DScene'));
+  const context={console};vm.runInNewContext(source,context);
+  const tire=context.PlayCarRigidBody.defaults.tire;
+  assert.ok(tire.relaxationAngle>0);
+  assert.ok(tire.referenceLoad>0);
+  assert.ok(tire.loadSensitivity>0);
+  assert.ok(tire.aligningTrail>0);
+});
