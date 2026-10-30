@@ -251,14 +251,15 @@ test('speed-dependent downforce increases available braking grip at speed',()=>{
   assert.ok(high>low+1.5,'higher speed should add downforce and increase tire load');
 });
 
-test('game HTML requests the current physics-engine cache version',()=>{
+test('game HTML loads the current all-in-one physics runtime bundle',()=>{
   const fs=require('node:fs');
   const path=require('node:path');
   const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
-  const api=require('../physics/playcar-physics-engine.js');
-  assert.equal(api.version,'1.8.0','behavior changes must bump the engine version');
-  assert.ok(html.includes(`./physics/playcar-physics-engine.js?v=${api.version}`),
-    'HTML cache-bust version must match the engine version');
+  const bundle=fs.readFileSync(path.join(__dirname,'../physics/playcar-physics-all-in-one.js'),'utf8');
+  assert.ok(html.includes('./physics/playcar-physics-all-in-one.js?v=2.0.0'),
+    'HTML must load the all-in-one runtime bundle with its current cache version');
+  assert.ok(bundle.includes('PlayCarRuntime')&&bundle.includes('PlayCarPhysicsEngine'),
+    'runtime bundle must expose the engine and runtime bridge');
 });
 
 test('default dry-road tire friction is realistic and handbrake grip is reduced',()=>{
