@@ -39,7 +39,7 @@ class RigidBodyVehicle{
   this.previous=clone(this.state);this.lastContacts=[];this.telemetry={};this._slipState=[0,0,0,0];this.aidState={abs:false,tcs:false};
  }
  setSurfaceMesh(mesh){this.mesh=mesh;return this;}
- reset(position={x:0,y:.65,z:0}){this.state={position:{...position},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};this.previous=clone(this.state);this.accumulator=0;this.tick=0;}
+ reset(position={x:0,y:.65,z:0}){this.state={position:{...position},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};this.previous=clone(this.state);this.accumulator=0;this.tick=0;this._slipState=[0,0,0,0];this.aidState={abs:false,tcs:false};this.lastContacts=[];this.telemetry={};}
  _invInertiaWorld(v){const q=this.state.orientation,local=Q.rotate({x:-q.x,y:-q.y,z:-q.z,w:q.w},v),i=this.c.inertia;return Q.rotate(q,{x:local.x/i.x,y:local.y/i.y,z:local.z/i.z});}
  _pointVelocity(r){return V.add(this.state.velocity,V.cross(this.state.angularVelocity,r));}
  _applyForce(F,r,dt){const s=this.state;s.velocity=V.add(s.velocity,V.mul(F,dt/this.c.mass));s.angularVelocity=V.add(s.angularVelocity,V.mul(this._invInertiaWorld(V.cross(r,F)),dt));}
