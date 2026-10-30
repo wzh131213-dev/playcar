@@ -224,8 +224,8 @@
       maxSteerAngle:.55,highSpeedSteerScale:.58,rollingResistance:.18,aerodynamicDrag:.0018,
       airYawRate:.72,airPitchStability:2.2},
     simcade:{},
-    simulation:{gravity:9.81,maxSpeed:70,engineAcceleration:12,brakeAcceleration:24,
-      rollingResistance:.06,aerodynamicDrag:.004,tireGrip:1.25,handbrakeGrip:1.25,
+    simulation:{gravity:9.81,maxSpeed:55,engineAcceleration:4.6,brakeAcceleration:8.5,
+      rollingResistance:.1,aerodynamicDrag:.0028,tireGrip:1.0,handbrakeGrip:.68,
       maxSteerAngle:.42,highSpeedSteerScale:.32,downforceCoefficient:.0009,maxDownforce:8,
       airYawRate:.3,airPitchRate:.28,airRollRate:.38,airPitchStability:1.1,
       collisionRestitution:.08,collisionFriction:.55}
