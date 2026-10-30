@@ -749,7 +749,7 @@ class RigidBodyVehicle{
   return out;
  }
  _fixed(dt,input){
-  const c=this.c,s=this.state;this.previous=clone(s);
+  const c=this.c,s=this.state;this.previous=clone(s);this.aidState={abs:false,tcs:false};
   const contacts=this._contacts();this.lastContacts=contacts;
   const normalLoad=[0,0,0,0],forces=[];
   // 1-2: wheel contact and spring/damper/bump-stop forces
@@ -805,7 +805,7 @@ class RigidBodyVehicle{
   this._solveCollisions(dt);
   const after=this._contacts();s.grounded=after.length>=2;
   this.tick++;
-  this.telemetry={tick:this.tick,contacts:after.length,normalLoads:normalLoad,forces,gear:this.gear,rpm:this.engineRpm,speed:V.len(s.velocity),downforce};
+  this.telemetry={tick:this.tick,contacts:after.length,normalLoads,forces,gear:this.gear,rpm:this.engineRpm,speed:V.len(s.velocity),downforce,absActive:this.aidState.abs,tcsActive:this.aidState.tcs,antiRoll:{front:c.antiRoll.front,rear:c.antiRoll.rear},differential:driveType};
  }
  _solveCollisions(dt){
   const s=this.state,c=this.c;
