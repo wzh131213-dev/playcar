@@ -195,3 +195,14 @@ node --test tests/*.test.js
 ```
 
 The root page is a visual/browser test lab and does not include the original racing game. Automated Node tests validate the numerical/API layer; a real browser and target-device run is still needed to verify a specific game's renderer, touch controls, camera, and frame pacing.
+
+
+## Interactive 3D physics scene
+
+The root Physics Lab now includes a Three.js-powered driving scene in `physics/scene3d.js`. It builds a shaded 3D environment with a solid road surface, collision barriers, a ramp, a detailed procedural car, chase camera, live telemetry, keyboard controls, and pointer-based touch controls.
+
+- Open the root page over HTTPS (GitHub Pages or another static host); the 3D renderer loads Three.js 0.180.0 from jsDelivr.
+- Drive with WASD or arrow keys. On touch devices, press and hold the on-screen direction/throttle/brake controls.
+- Use **重置 3D 车辆** to reset the car, and toggle the follow camera to inspect the scene.
+- The physics collision mesh is generated separately from the visual Three.js meshes. Keep the render geometry and physics triangles aligned when editing the track.
+- This scene is a test environment, not a complete racing game. A network connection is required for the Three.js CDN module; the physics engine itself remains dependency-free.
