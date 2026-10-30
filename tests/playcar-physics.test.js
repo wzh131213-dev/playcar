@@ -210,7 +210,7 @@ test('root HTML loads the current 3D physics control center bundle',()=>{
   const fs=require('node:fs');
   const path=require('node:path');
   const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
-  assert.match(html,/<title>PlayCar · Physics Control Center<\\/title>/);
+  assert.ok(html.includes('<title>PlayCar · Physics Control Center</title>'));
   assert.match(html,/playcar-physics-all-in-one\\.js\\?v=2\\.0\\.0/);
   assert.match(html,/id="scene3d"/);
   assert.doesNotMatch(html,/POLY.?RUSH|TIME ATTACK/i);
