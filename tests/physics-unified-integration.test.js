@@ -80,3 +80,14 @@ test('all-in-one bundle exports the same Pacejka and friction-ellipse tire solve
   assert.ok(Math.abs(combined.Fy)<Math.abs(lateral.Fy));
   assert.ok(combined.utilization<=1+1e-9);
 });
+
+test('all-in-one bundle exposes progressive bump-stop suspension telemetry',()=>{
+  const source=bundle.slice(0,bundle.indexOf('(async function startPlayCar3DScene'));
+  const context={console};vm.runInNewContext(source,context);
+  const Engine=context.PlayCarRigidBody.RigidBodyVehicle;
+  const engine=new Engine({groundPlaneY:0,position:{x:0,y:.3,z:0}});
+  engine.advance(1/120,{});
+  assert.equal(context.PlayCarRigidBody.version,'2.2.0');
+  assert.equal(engine.telemetry.suspension.length,4);
+  assert.ok(engine.telemetry.suspension[0].bumpStopForce>0);
+});
