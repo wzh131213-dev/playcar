@@ -56,7 +56,7 @@ class RigidBodyVehicle{
    let n=V.norm(hit.normal||{x:0,y:1,z:0});if(V.dot(n,{x:0,y:1,z:0})<0)n=V.mul(n,-1);
    const length=V.clamp(hit.distance-c.wheelRadius, c.suspension.min,c.suspension.max),compression=c.suspension.rest-length;
    const point=hit.point||V.sub(origin,V.mul(n,hit.distance)),arm=V.sub(point,s.position),pv=this._pointVelocity(arm),vn=V.dot(pv,n);
-   out.push({index:i,point,normal:n,arm,compression,length,normalVelocity:vn,velocity:pv,local});
+   out.push({index:i,point,normal:n,arm,compression,length,normalVelocity:vn,velocity:pv,local,friction:Number.isFinite(hit.friction)?Math.max(0,hit.friction):1});
   }
   return out;
  }
@@ -71,6 +71,7 @@ class RigidBodyVehicle{
    const load=Math.max(0,spring);normalLoad[h.index]=load;
    const F=V.mul(h.normal,load);this._applyForce(F,h.arm,dt);
   }
+  for(const [left,right,rate] of [[0,1,c.antiRoll.front],[2,3,c.antiRoll.rear]]){const a=contacts.find(h=>h.index===left),b=contacts.find(h=>h.index===right);if(a&&b&&rate>0){const transfer=(a.compression-b.compression)*rate,fa=Math.max(-normalLoad[left],transfer),fb=Math.max(-normalLoad[right],-transfer);normalLoad[left]+=fa;normalLoad[right]+=fb;this._applyForce(V.mul(a.normal,fa),a.arm,dt);this._applyForce(V.mul(b.normal,fb),b.arm,dt);}}
   const forward=Q.rotate(s.orientation,{x:0,y:0,z:-1}),right=Q.rotate(s.orientation,{x:1,y:0,z:0});
   const speed=V.len(s.velocity),airDrag=.5*c.airDensity*c.dragArea*speed*speed;
   if(speed>1e-5)this._applyForce(V.mul(s.velocity,-airDrag/speed),V.zero(),dt);
@@ -83,21 +84,26 @@ class RigidBodyVehicle{
   if(this.engineRpm>e.redline*.96&&this.gear<e.gears.length)this.gear++;
   if(this.engineRpm<e.redline*.55&&this.gear>1)this.gear--;
   const torque=e.peakTorque*throttle*V.clamp(1-Math.abs(this.engineRpm-3800)/6500,.25,1);
-  const driveTorque=torque*e.gears[this.gear-1]*e.finalDrive*e.efficiency/2;
-  const steerAngle=steer*.48;
+  const totalDriveTorque=torque*e.gears[this.gear-1]*e.finalDrive*e.efficiency;
+  const driveType=c.differential.type||'rwd';const driven=[0,1,2,3].filter(i=>driveType==='awd'||(driveType==='fwd'&&i<2)||(driveType!=='fwd'&&driveType!=='awd'&&i>=2));
+  const steerAngle=steer*c.steering.maxAngle*(1-(1-c.steering.highSpeedScale)*V.clamp(speed/55,0,1));
   for(const h of contacts){
    const i=h.index,rear=i>=2,front=!rear;
    let wheelForward=forward,wheelRight=right;
    if(front){wheelForward=V.norm(V.add(V.mul(forward,Math.cos(steerAngle)),V.mul(right,Math.sin(steerAngle))));wheelRight=V.norm(V.cross(wheelForward,h.normal));}
    const vLong=V.dot(h.velocity,wheelForward),vLat=V.dot(h.velocity,wheelRight),omega=s.wheelOmega[i];
-   const slipRatio=(omega*c.wheelRadius-vLong)/Math.max(2,Math.abs(vLong)),slipAngle=Math.atan2(vLat,Math.max(1,Math.abs(vLong)));
-   const FxRaw=c.tire.longitudinalStiffness*slipRatio+(rear?driveTorque/c.wheelRadius:0);
+   const rawSlip=(omega*c.wheelRadius-vLong)/Math.max(2,Math.abs(vLong)),relax=V.clamp(dt/Math.max(.001,c.tire.relaxation),0,1);this._slipState[i]+=(rawSlip-this._slipState[i])*relax;
+   let slipRatio=this._slipState[i],slipAngle=Math.atan2(vLat,Math.max(1,Math.abs(vLong)));
+   let wheelDrive=driven.includes(i)?totalDriveTorque/Math.max(1,driven.length):0;
+   if(c.aids.tcs&&wheelDrive>0&&slipRatio>c.aids.tcsSlip){wheelDrive*=V.clamp(c.aids.tcsSlip/Math.max(.001,slipRatio),.15,1);this.aidState.tcs=true;}
+   const FxRaw=c.tire.longitudinalStiffness*slipRatio+wheelDrive/c.wheelRadius;
    const FyRaw=-c.tire.corneringStiffness*slipAngle;
-   const cap=c.tire.mu*normalLoad[i],mag=Math.hypot(FxRaw,FyRaw),scale=mag>cap&&mag>0?cap/mag:1;
+   const cap=c.tire.mu*h.friction*normalLoad[i],mag=Math.hypot(FxRaw,FyRaw),scale=mag>cap&&mag>0?cap/mag:1;
    const Fx=FxRaw*scale,Fy=FyRaw*scale;
    this._applyForce(V.add(V.mul(wheelForward,Fx),V.mul(wheelRight,Fy)),h.arm,dt);
-   const brakeTorque=brake*c.brakeTorque+(input.handbrake&&rear?c.handbrakeTorque:0);
-   const wheelAccel=((rear?driveTorque:0)-Fx*c.wheelRadius-Math.sign(omega||vLong)*brakeTorque)/(c.wheelMass*c.wheelRadius*c.wheelRadius);
+   let brakeTorque=brake*c.brakeTorque+(input.handbrake&&rear?c.handbrakeTorque:0);
+   if(c.aids.abs&&brakeTorque>0&&Math.abs(slipRatio)>c.aids.absSlip){brakeTorque*=.35;this.aidState.abs=true;}
+   const wheelAccel=(wheelDrive-Fx*c.wheelRadius-Math.sign(omega||vLong)*brakeTorque)/(c.wheelMass*c.wheelRadius*c.wheelRadius);
    s.wheelOmega[i]+=wheelAccel*dt;
    if(Math.abs(s.wheelOmega[i])<.5&&brake>.8)s.wheelOmega[i]=0;
    forces.push({wheel:i,Fx,Fy,normalLoad:normalLoad[i],slipRatio,slipAngle});
