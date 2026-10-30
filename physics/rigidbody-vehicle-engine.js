@@ -23,16 +23,31 @@ const DEFAULTS={
  inertia:{x:520,y:1450,z:1650},com:{x:0,y:.52,z:0},
  wheelbase:2.65,track:1.56,wheelRadius:.32,wheelMass:18,
  suspension:{rest:.32,min:.08,max:.48,stiffness:32000,damping:4200,bump:90000},
- tire:{mu:1.08,corneringStiffness:78000,longitudinalStiffness:95000,relaxation:.04,relaxationAngle:.08,loadSensitivity:.12,referenceLoad:3000,aligningTrail:.08},
+ tire:{mu:1.08,corneringStiffness:78000,longitudinalStiffness:95000,relaxation:.04,relaxationAngle:.08,loadSensitivity:.12,referenceLoad:3000,aligningTrail:.08,pacejka:{enabled:false,B:0,C:1.3,E:.97,peak:1},frictionEllipse:{longitudinal:1,lateral:1}},
  engine:{peakTorque:280,idleRpm:900,redline:6500,finalDrive:3.9,gears:[3.2,2.1,1.5,1.18,.94,.78],efficiency:.88},
  antiRoll:{front:8500,rear:6500},differential:{type:'open',limitedSlip:2.2},aids:{abs:true,tcs:true,absSlip:.18,tcsSlip:.22},steering:{maxAngle:.48,highSpeedScale:.42},
  brakeTorque:4200,handbrakeTorque:6500,dragArea:0.68,airDensity:1.225,downforceArea:0.0,
  restitution:.08,collisionFriction:.55,bodyHalf:{x:.88,y:.48,z:2.05},ccd:true
 };
 function clone(o){return JSON.parse(JSON.stringify(o));}
+function calculateTireForces(FxRaw,slipAngle,normalLoad,frictionCoefficient,tire={}){
+ const cap=Math.max(0,frictionCoefficient*normalLoad),pacejka=tire.pacejka||{};
+ let FyRaw;
+ if(pacejka.enabled){
+  const C=Math.max(.1,Number(pacejka.C)||1.3),E=Number.isFinite(Number(pacejka.E))?Number(pacejka.E):.97,peak=Math.max(0,Number(pacejka.peak??1));
+  const D=cap*peak,B=Number(pacejka.B)>0?Number(pacejka.B):Math.max(.001,(Number(tire.corneringStiffness)||78000)/(C*Math.max(D,1)));
+  const x=B*slipAngle;
+  FyRaw=-D*Math.sin(C*Math.atan(x-E*(x-Math.atan(x))));
+ }else FyRaw=-(Number(tire.corneringStiffness)||78000)*slipAngle;
+ const ellipse=tire.frictionEllipse||{},longitudinal=Math.max(.01,Number(ellipse.longitudinal)||1),lateral=Math.max(.01,Number(ellipse.lateral)||1);
+ const nx=cap*longitudinal,ny=cap*lateral;
+ const utilization=cap>0?Math.hypot(FxRaw/nx,FyRaw/ny):Infinity,scale=utilization>1?1/utilization:1;
+ const Fx=cap>0?FxRaw*scale:0,Fy=cap>0?FyRaw*scale:0;
+ return{Fx,Fy,FyRaw,utilization:cap>0?Math.hypot(Fx/nx,Fy/ny):0,scale};
+}
 class RigidBodyVehicle{
  constructor(options={}){
-  this.c=Object.assign({},clone(DEFAULTS),options.config||{});this.c.inertia=Object.assign({},DEFAULTS.inertia,options.config?.inertia||{});this.c.com=Object.assign({},DEFAULTS.com,options.config?.com||{});this.c.suspension=Object.assign({},DEFAULTS.suspension,options.config?.suspension||{});this.c.tire=Object.assign({},DEFAULTS.tire,options.config?.tire||{});this.c.engine=Object.assign({},DEFAULTS.engine,options.config?.engine||{});this.c.antiRoll=Object.assign({},DEFAULTS.antiRoll,options.config?.antiRoll||{});this.c.differential=Object.assign({},DEFAULTS.differential,options.config?.differential||{});this.c.aids=Object.assign({},DEFAULTS.aids,options.config?.aids||{});this.c.steering=Object.assign({},DEFAULTS.steering,options.config?.steering||{});
+  this.c=Object.assign({},clone(DEFAULTS),options.config||{});this.c.inertia=Object.assign({},DEFAULTS.inertia,options.config?.inertia||{});this.c.com=Object.assign({},DEFAULTS.com,options.config?.com||{});this.c.suspension=Object.assign({},DEFAULTS.suspension,options.config?.suspension||{});this.c.tire=Object.assign({},DEFAULTS.tire,options.config?.tire||{});this.c.tire.pacejka=Object.assign({},DEFAULTS.tire.pacejka,options.config?.tire?.pacejka||{});this.c.tire.frictionEllipse=Object.assign({},DEFAULTS.tire.frictionEllipse,options.config?.tire?.frictionEllipse||{});this.c.engine=Object.assign({},DEFAULTS.engine,options.config?.engine||{});this.c.antiRoll=Object.assign({},DEFAULTS.antiRoll,options.config?.antiRoll||{});this.c.differential=Object.assign({},DEFAULTS.differential,options.config?.differential||{});this.c.aids=Object.assign({},DEFAULTS.aids,options.config?.aids||{});this.c.steering=Object.assign({},DEFAULTS.steering,options.config?.steering||{});
   this.mesh=options.surfaceMesh||null;this.colliders=options.colliderMeshes||[];this.groundY=options.groundPlaneY??null;
   this.accumulator=0;this.gear=1;this.engineRpm=this.c.engine.idleRpm;this.tick=0;
   this.state={position:{...(options.position||{x:0,y:.65,z:0})},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};
@@ -103,9 +118,7 @@ class RigidBodyVehicle{
    let wheelDrive=wheelDriveTorque[i];
    if(c.aids.tcs&&wheelDrive>0&&slipRatio>c.aids.tcsSlip){wheelDrive*=V.clamp(c.aids.tcsSlip/Math.max(.001,slipRatio),.15,1);this.aidState.tcs=true;}
    const FxRaw=c.tire.longitudinalStiffness*slipRatio+wheelDrive/c.wheelRadius;
-   const FyRaw=-c.tire.corneringStiffness*slipAngle;
-   const loadSensitivityFactor=V.clamp(Math.pow(Math.max(1,normalLoad[i])/Math.max(1,c.tire.referenceLoad||3000),-(c.tire.loadSensitivity||0)),.55,1.25),frictionCoefficient=c.tire.mu*h.friction*loadSensitivityFactor,cap=frictionCoefficient*normalLoad[i],mag=Math.hypot(FxRaw,FyRaw),scale=mag>cap&&mag>0?cap/mag:1;
-   const Fx=FxRaw*scale,Fy=FyRaw*scale,aligningMoment=-Fy*(c.tire.aligningTrail||0)*V.clamp(1-Math.abs(slipAngle)/.6,0,1);
+   const loadSensitivityFactor=V.clamp(Math.pow(Math.max(1,normalLoad[i])/Math.max(1,c.tire.referenceLoad||3000),-(c.tire.loadSensitivity||0)),.55,1.25),frictionCoefficient=c.tire.mu*h.friction*loadSensitivityFactor,tireForce=calculateTireForces(FxRaw,slipAngle,normalLoad[i],frictionCoefficient,c.tire),Fx=tireForce.Fx,Fy=tireForce.Fy,FyRaw=tireForce.FyRaw,aligningMoment=-Fy*(c.tire.aligningTrail||0)*V.clamp(1-Math.abs(slipAngle)/.6,0,1);
    this._applyForce(V.add(V.mul(wheelForward,Fx),V.mul(wheelRight,Fy)),h.arm,dt);if(aligningMoment)this._applyTorque(V.mul(h.normal,aligningMoment),dt);
    let brakeTorque=brake*c.brakeTorque+(input.handbrake&&rear?c.handbrakeTorque:0);
    if(c.aids.abs&&brakeTorque>0&&Math.abs(slipRatio)>c.aids.absSlip){brakeTorque*=.35;this.aidState.abs=true;}
@@ -158,6 +171,6 @@ class RigidBodyVehicle{
  }
  interpolatedState(){const a=this.previous,b=this.state,t=V.clamp(this.accumulator/this.c.fixedDt,0,1);return{position:V.add(a.position,V.mul(V.sub(b.position,a.position),t)),velocity:V.add(a.velocity,V.mul(V.sub(b.velocity,a.velocity),t)),orientation:Q.slerp(a.orientation,b.orientation,t),grounded:b.grounded};}
 }
-root.PlayCarRigidBody={RigidBodyVehicle,Vector3:V,Quaternion:Q,defaults:clone(DEFAULTS),version:'2.0.0'};
+root.PlayCarRigidBody={RigidBodyVehicle,Vector3:V,Quaternion:Q,calculateTireForces,defaults:clone(DEFAULTS),version:'2.1.0'};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.PlayCarRigidBody;
 })(typeof globalThis!=='undefined'?globalThis:this);
