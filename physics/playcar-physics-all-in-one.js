@@ -735,7 +735,7 @@ class RigidBodyVehicle{
   const c=this.c,s=this.state,out=[],q=s.orientation,half=c.wheelbase/2,track=c.track/2;
   const mounts=[[-track,-half],[track,-half],[-track,half],[track,half]];
   for(let i=0;i<4;i++){
-   const local={x:mounts[i][0],y:-.36,z:mounts[i][1]},r=Q.rotate(q,local),origin=V.add(s.position,r);
+   const local={x:mounts[i][0],y:0,z:mounts[i][1]},r=Q.rotate(q,local),origin=V.add(s.position,r);
    const down=Q.rotate(q,{x:0,y:-1,z:0}),reach=c.suspension.max+c.wheelRadius;
    let hit=null;
    if(this.mesh?.closestPoint){hit=this.mesh.closestPoint(origin,reach+c.wheelRadius,{x:0,y:1,z:0});}
