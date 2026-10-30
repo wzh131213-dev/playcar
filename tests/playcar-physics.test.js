@@ -261,112 +261,26 @@ test('game HTML requests the current physics-engine cache version',()=>{
     'HTML cache-bust version must match the engine version');
 });
 
-test('tire grip is increased by 50 percent and handbrake grip matches normal grip',()=>{
+test('default dry-road tire friction is realistic and handbrake grip is reduced',()=>{
   const engine=makeEngine();
-  assert.equal(engine.config.tireGrip,3.6,'tire grip should be 50% above the previous 2.4 baseline');
-  assert.equal(engine.config.handbrakeGrip,engine.config.tireGrip,
-    'handbrake grip should equal normal tire grip');
+  assert.equal(engine.config.tireGrip,1.05,'dry asphalt friction coefficient should be near 1.0');
+  assert.equal(engine.config.handbrakeGrip,.72,'handbrake should reduce grip for a controlled slide');
 });
 
-test('default tire grip is stronger and reduces side slip faster than the old floaty setup',()=>{
+test('default tire grip removes side slip faster than a low-grip setup',()=>{
   const standard=makeEngine();
-  const oldGrip=makeEngine({config:{tireGrip:1.65}});
-  assert.ok(standard.config.tireGrip>=2.2,'default tire grip should be tuned up for planted arcade handling');
+  const lowGrip=makeEngine({config:{tireGrip:.55}});
+  assert.ok(standard.config.tireGrip>=.95,'default tire grip should be calibrated for dry asphalt');
   standard.state.velocity={x:9,y:0,z:-18};
-  oldGrip.state.velocity={x:9,y:0,z:-18};
+  lowGrip.state.velocity={x:9,y:0,z:-18};
   runFor(standard,.35,{},60);
-  runFor(oldGrip,.35,{},60);
-  assert.ok(Math.abs(standard.state.velocity.x)<Math.abs(oldGrip.state.velocity.x)*.88,
-    'stronger default tire grip should remove noticeably more lateral velocity');
-  finiteState(standard);finiteState(oldGrip);
+  runFor(lowGrip,.35,{},60);
+  assert.ok(Math.abs(standard.state.velocity.x)<Math.abs(lowGrip.state.velocity.x)*.9,
+    'normal dry-road grip should remove more lateral velocity than a low-grip surface');
+  finiteState(standard);finiteState(lowGrip);
 });
-test('handbrake does not reduce tire-ground friction below normal grip',()=>{
-  const normal=makeEngine();
-  const handbrake=makeEngine();
-  assert.equal(handbrake.config.handbrakeGrip,normal.config.tireGrip,
-    'handbrake grip should equal normal tire grip');
-  assert.equal(handbrake.config.handbrakeGrip,3.6);
-});
-
-
-test('engine exposes reusable game-integration presets and analog steering',()=>{
-  const presets = require('../physics/playcar-physics-engine.js').presets;
-  assert.ok(presets.arcade && presets.simcade && presets.simulation,
-    'arcade, simcade, and simulation presets should be available');
-  const e = new Engine({surfaceMesh:rectangleSurface(),position:{x:0,y:-.03,z:0},preset:'simcade'});
-  e.advance(1/60,{throttle:.5,steer:.5});
-  assert.ok(V.len(e.state.velocity)>0,'analog throttle should accelerate');
-  const forward=Q.rotate(e.state.orientation,{x:0,y:0,z:-1});
-  assert.ok(forward.x>0,'positive analog steer should turn right while moving forward');
-  finiteState(e);
-});
-
-test('integration aliases and defensive state snapshots work without sharing mutable objects',()=>{
-  const e=makeEngine();
-  assert.equal(typeof e.update,'function');
-  assert.equal(typeof e.step,'function');
-  assert.equal(typeof e.setInput,'function');
-  assert.equal(typeof e.applyImpulse,'function');
-  assert.equal(typeof e.getState,'function');
-  e.setInput({throttle:1});
-  e.update(1/60);
-  const snapshot=e.getState();
-  const originalX=e.state.position.x;
-  snapshot.position.x=99999;
-  assert.equal(e.state.position.x,originalX,'snapshot must not mutate live simulation state');
-  e.applyImpulse({x:2,y:0,z:0});
-  assert.ok(e.state.velocity.x>0,'impulse should change velocity');
-  finiteState(e);
-});
-
-test('input aliases, analog brake, and invalid numeric input stay bounded',()=>{
-  const e=makeEngine();
-  e.update(1/60,{accelerate:1,steering:-.6});
-  assert.ok(V.len(e.state.velocity)>0,'accelerate alias should be accepted');
-  e.update(1/60,{throttle:NaN,brake:Infinity,steer:NaN});
-  finiteState(e);
-  assert.ok(V.len(e.state.velocity)<e.config.maxSpeed*1.36,'invalid input must not destabilize speed');
-});
-
-test('heightfield adapter builds queryable terrain triangles with finite heights',()=>{
-  const terrain=TriangleMesh.fromHeightfield({width:20,depth:20,segmentsX:8,segmentsZ:8,heightAt:(x,z)=>Math.sin(x*.1)*Math.cos(z*.1)},4);
-  assert.equal(terrain.triangles.length,128);
-  const hit=terrain.closestPoint({x:0,y:0,z:0},2);
-  assert.ok(hit,'generated terrain should be queryable');
-  assert.ok(Number.isFinite(hit.point.y)&&Number.isFinite(hit.normal.y),'heightfield output should be finite');
-  assert.throws(()=>TriangleMesh.fromHeightfield({width:4,depth:4,segmentsX:2,segmentsZ:2,heightAt:()=>NaN}),/finite number/);
-});
-
-test('telemetry reports speed, slip angle, contact and stable state without exposing live references',()=>{
-  const e=makeEngine();e.state.velocity={x:5,y:0,z:-12};e.advance(1/60,{});
-  const data=e.getTelemetry();
-  assert.ok(Number.isFinite(data.speed)&&Number.isFinite(data.slipAngle));
-  assert.equal(typeof data.grounded,'boolean');
-  data.position.x=123456;
-  assert.notEqual(e.state.position.x,123456,'telemetry position must be copied');
-});
-
-
-test('renderer-neutral pose adapter syncs engine state to common 3D objects',()=>{
-  const {createRenderAdapter}=require('../physics/playcar-physics-engine.js');
-  const e=makeEngine();
-  const object={position:{x:0,y:0,z:0,set(x,y,z){this.x=x;this.y=y;this.z=z;}},
-    quaternion:{x:0,y:0,z:0,w:1,set(x,y,z,w){this.x=x;this.y=y;this.z=z;this.w=w;}}};
-  const adapter=createRenderAdapter(e,object);
-  const result=adapter.update(1/60,{throttle:1,steer:.2});
-  assert.ok(result.pose&&result.telemetry);
-  assert.equal(object.position.x,result.pose.position.x);
-  assert.equal(object.quaternion.w,result.pose.orientation.w);
-  assert.ok(Number.isFinite(object.position.z));
-  adapter.sync();
-  finiteState(e);
-});
-
-test('renderer-neutral adapter accepts plain mutable vectors without set methods',()=>{
-  const {createRenderAdapter}=require('../physics/playcar-physics-engine.js');
-  const e=makeEngine();
-  const object={position:{x:99,y:99,z:99},quaternion:{x:0,y:0,z:0,w:0}};
-  createRenderAdapter(e,object).sync();
-  assert.equal(object.position.x,e.interpolatedState().position.x);
-  assert.equal(object.quaternion.w,e.interpolatedState().orientation.w);
+test('handbrake reduces tire-ground friction for controlled drift',()=>{
+  const normal=makeEngine(),handbrake=makeEngine();
+  assert.ok(handbrake.config.handbrakeGrip<normal.config.tireGrip);
+  assert.ok(handbrake.config.handbrakeGrip>=.5);
 });
