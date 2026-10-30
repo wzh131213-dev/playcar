@@ -1,4 +1,4 @@
-/* PlayCar rigid-body vehicle physics 2.3.0
+/* PlayCar rigid-body vehicle physics 2.4.0
  * Fixed-step 120 Hz, four independent suspension/tire contacts, rigid-body integration.
  * SI-like units: metres, seconds, kilograms, newtons, radians.
  */
@@ -122,7 +122,25 @@ class RigidBodyVehicle{
     suspensionTelemetry[h.index].normalLoad=normalLoad[h.index];
    }
   }
-  const loadTransferTelemetry={longitudinal:-longitudinalTransfer};
+  const steeringForTransfer=steer*c.steering.maxAngle*(1-(1-c.steering.highSpeedScale)*V.clamp(speed/55,0,1));
+  const requestedLateralAcceleration=longitudinalSpeed*Math.abs(longitudinalSpeed)*Math.tan(steeringForTransfer)/Math.max(.1,c.wheelbase);
+  // Positive lateral acceleration (positive steering while moving forward) loads the left/outside wheels.
+  const requestedLateralTransfer=c.mass*requestedLateralAcceleration*Math.max(0,c.com.y)/Math.max(.1,c.track);
+  const leftContacts=contacts.filter(h=>h.index===0||h.index===2),rightContacts=contacts.filter(h=>h.index===1||h.index===3);
+  const leftAvailable=leftContacts.reduce((sum,h)=>sum+normalLoad[h.index],0);
+  const rightAvailable=rightContacts.reduce((sum,h)=>sum+normalLoad[h.index],0);
+  const lateralTransfer=leftContacts.length&&rightContacts.length?V.clamp(requestedLateralTransfer,-leftAvailable,rightAvailable):0;
+  for(const [side,delta] of [[leftContacts,lateralTransfer],[rightContacts,-lateralTransfer]]){
+   if(!side.length)continue;
+   const perWheel=delta/side.length;
+   for(const h of side){
+    normalLoad[h.index]=Math.max(0,normalLoad[h.index]+perWheel);
+    const applied=normalLoad[h.index]-suspensionTelemetry[h.index].normalLoad;
+    if(applied)this._applyForce(V.mul(h.normal,applied),h.arm,dt);
+    suspensionTelemetry[h.index].normalLoad=normalLoad[h.index];
+   }
+  }
+  const loadTransferTelemetry={longitudinal:-longitudinalTransfer,lateral:lateralTransfer};
   const rawDiffType=c.differential.type||'open',driveType=c.differential.layout||(['fwd','rwd','awd'].includes(rawDiffType)?rawDiffType:'rwd'),diffType=['lsd','limited-slip'].includes(rawDiffType)?'lsd':'open';const driven=[0,1,2,3].filter(i=>driveType==='awd'||(driveType==='fwd'&&i<2)||(driveType!=='fwd'&&driveType!=='awd'&&i>=2));
   const wheelDriveTorque=[0,0,0,0];
   for(const axle of [[0,1],[2,3]]){const pair=axle.filter(i=>driven.includes(i));if(!pair.length)continue;const base=totalDriveTorque/driven.length;
@@ -193,6 +211,6 @@ class RigidBodyVehicle{
  }
  interpolatedState(){const a=this.previous,b=this.state,t=V.clamp(this.accumulator/this.c.fixedDt,0,1);return{position:V.add(a.position,V.mul(V.sub(b.position,a.position),t)),velocity:V.add(a.velocity,V.mul(V.sub(b.velocity,a.velocity),t)),orientation:Q.slerp(a.orientation,b.orientation,t),grounded:b.grounded};}
 }
-root.PlayCarRigidBody={RigidBodyVehicle,Vector3:V,Quaternion:Q,calculateTireForces,defaults:clone(DEFAULTS),version:'2.3.0'};
+root.PlayCarRigidBody={RigidBodyVehicle,Vector3:V,Quaternion:Q,calculateTireForces,defaults:clone(DEFAULTS),version:'2.4.0'};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.PlayCarRigidBody;
 })(typeof globalThis!=='undefined'?globalThis:this);
