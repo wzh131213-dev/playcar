@@ -27,3 +27,23 @@ test('reset sends the spawn position through the unified engine API',()=>{
 });
 
 test('all-in-one browser bundle parses as valid JavaScript',()=>{assert.doesNotThrow(()=>new vm.Script(bundle));});
+
+test('runtime triangle mesh preserves per-triangle friction material',()=>{
+  const source=bundle.slice(0,bundle.indexOf('(async function startPlayCar3DScene'));
+  const context={console};vm.runInNewContext(source,context);
+  const Mesh=context.PlayCarPhysicsEngine.TriangleMesh;
+  const a={x:-2,y:0,z:-2},b={x:2,y:0,z:-2},c={x:0,y:0,z:2};
+  const mesh=Mesh.fromTriangles([[a,b,c,.27]]);
+  const hit=mesh.closestPoint({x:0,y:1,z:0},5,{x:0,y:1,z:0});
+  assert.equal(hit.friction,.27);
+});
+test('unified vehicle exposes limited-slip differential tuning',()=>{
+  const source=bundle.slice(0,bundle.indexOf('(async function startPlayCar3DScene'));
+  const context={console};vm.runInNewContext(source,context);
+  const Engine=context.PlayCarPhysicsEngine.PlayCarPhysicsEngine;
+  const engine=new Engine({groundPlaneY:0,position:{x:0,y:0,z:0}});
+  assert.equal(engine.rigidBody.c.differential.type,'lsd');
+  assert.equal(engine.rigidBody.c.differential.layout,'rwd');
+  const result=engine.setDifferential('lsd','awd',3.1);
+  assert.deepEqual(JSON.parse(JSON.stringify(result)),{type:'lsd',layout:'awd',limitedSlip:3.1});
+});
