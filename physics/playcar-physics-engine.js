@@ -460,7 +460,9 @@
       const longitudinal=V.dot(s.velocity,fwd),speed=V.len(s.velocity);
       const speedRatio=V.clamp(Math.abs(longitudinal)/c.maxSpeed,0,1);
       const wetGripScale=1-.42*this.weather.wetness;
-      // tireGrip is a dimensionless friction coefficient (mu), not a force multiplier.\n      // Longitudinal drive/brake and lateral cornering share mu * normalLoad.\n      const baseMu=(handbrake>0?c.handbrakeGrip:c.tireGrip)*wetGripScale;
+      // tireGrip is a dimensionless friction coefficient (mu), not a force multiplier.
+      // Longitudinal drive/brake and lateral cornering share mu * normalLoad.
+      const baseMu=(handbrake>0?c.handbrakeGrip:c.tireGrip)*wetGripScale;
       // Speed-squared aerodynamic load follows the road support normal. It is
       // capped so an arcade car stays controllable and does not gain infinite grip.
       const downforce=wasGrounded?Math.min(c.maxDownforce,speed*speed*c.downforceCoefficient):0;
