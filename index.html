@@ -27,7 +27,7 @@ header,.wrap{max-width:1440px;margin:auto}header{display:flex;align-items:center
  <div class="panel"><div class="section-head"><div><h2>实时 3D 车辆</h2><div class="muted">这里的车辆与下方控制台使用同一个物理引擎实例</div></div><div class="muted" id="scene-status">等待 3D 初始化</div></div>
   <div id="scene3d" aria-label="3D 赛车模拟场景"></div>
   <div class="scene-buttons"><button id="scene-left">◀ 左转</button><button id="scene-gas" class="gas">▲ 油门</button><button id="scene-brake" class="brake">▼ 刹车 / 倒车</button><button id="scene-right">右转 ▶</button><button id="scene-handbrake">手刹</button></div>
-  <div class="actions"><button class="primary" id="reset-car">重置车辆</button><button id="follow-camera">跟随视角：开</button></div>
+  <div class="actions"><button class="primary" id="reset-car">重置车辆</button><button id="scene-follow">跟随视角：开</button></div>
  </div>
  <div class="panel"><h2>核心实时数据</h2><div class="muted">直接读取当前物理引擎快照</div><div class="stats">
   <div class="stat"><small>速度</small><strong id="stat-speed">0</strong></div><div class="stat"><small>纵向速度</small><strong id="stat-long">0</strong></div><div class="stat"><small>横向速度</small><strong id="stat-lat">0</strong></div><div class="stat"><small>侧滑角</small><strong id="stat-slip">0</strong></div>
@@ -82,7 +82,7 @@ function setWeather(){if(!runtime)return;runtime.setWeather({wind:{x:Number($('w
 function hold(id,key,value){const el=$(id);if(!el)return;const down=e=>{e.preventDefault();setInput(key,value);try{el.setPointerCapture(e.pointerId)}catch(_){}};const up=e=>{if(e)e.preventDefault();setInput(key,key==='steer'?0:0);};el.addEventListener('pointerdown',down);['pointerup','pointercancel','lostpointercapture'].forEach(n=>el.addEventListener(n,up));}
 buildInputs();hold('scene-left','steer',-1);hold('scene-right','steer',1);hold('scene-gas','throttle',1);hold('scene-brake','brake',1);hold('scene-handbrake','handbrake',1);
 $('reset-car').addEventListener('click',()=>{if(runtime){runtime.reset();buildInputs();}});
-$('follow-camera').addEventListener('click',()=>document.getElementById('scene-follow')?.click());
+
 $('wind-x').addEventListener('input',setWeather);$('wind-z').addEventListener('input',setWeather);$('wetness').addEventListener('input',setWeather);
 $('param-search').addEventListener('input',renderParams);
 $('restore-defaults').addEventListener('click',()=>{if(!runtime)return;runtime.setConfig(runtime.engine.constructor?window.PlayCarPhysicsEngine.defaults:{});$('preset').value='simcade';runtime.engine.preset='simcade';renderParams();});
