@@ -713,7 +713,7 @@ const DEFAULTS={
  inertia:{x:520,y:1450,z:1650},com:{x:0,y:.52,z:0},
  wheelbase:2.65,track:1.56,wheelRadius:.32,wheelMass:18,
  suspension:{rest:.32,min:.08,max:.48,stiffness:32000,damping:4200,bump:90000},
- tire:{mu:1.08,corneringStiffness:78000,longitudinalStiffness:95000,relaxation:.04},
+ tire:{mu:1.08,corneringStiffness:78000,longitudinalStiffness:95000,relaxation:.04,relaxationAngle:.08,loadSensitivity:.12,referenceLoad:3000,aligningTrail:.08},
  engine:{peakTorque:280,idleRpm:900,redline:6500,finalDrive:3.9,gears:[3.2,2.1,1.5,1.18,.94,.78],efficiency:.88},
  brakeTorque:4200,handbrakeTorque:6500,dragArea:0.68,airDensity:1.225,downforceArea:0.0,
  restitution:.08,collisionFriction:.55,bodyHalf:{x:.88,y:.48,z:2.05},ccd:true
@@ -725,13 +725,14 @@ class RigidBodyVehicle{
   this.mesh=options.surfaceMesh||null;this.colliders=options.colliderMeshes||[];this.groundY=options.groundPlaneY??null;
   this.accumulator=0;this.gear=1;this.engineRpm=this.c.engine.idleRpm;this.tick=0;
   this.state={position:{...(options.position||{x:0,y:.65,z:0})},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};
-  this.previous=clone(this.state);this.lastContacts=[];this.telemetry={};this._slipState=[0,0,0,0];this.aidState={abs:false,tcs:false};
+  this.previous=clone(this.state);this.lastContacts=[];this.telemetry={};this._slipState=[0,0,0,0];this._slipAngleState=[0,0,0,0];this.aidState={abs:false,tcs:false};
  }
  setSurfaceMesh(mesh){this.mesh=mesh;return this;}
  reset(position={x:0,y:.65,z:0}){this.state={position:{...position},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};this.previous=clone(this.state);this.accumulator=0;this.tick=0;this._slipState=[0,0,0,0];this.aidState={abs:false,tcs:false};this.lastContacts=[];this.telemetry={};}
  _invInertiaWorld(v){const q=this.state.orientation,local=Q.rotate({x:-q.x,y:-q.y,z:-q.z,w:q.w},v),i=this.c.inertia;return Q.rotate(q,{x:local.x/i.x,y:local.y/i.y,z:local.z/i.z});}
  _pointVelocity(r){return V.add(this.state.velocity,V.cross(this.state.angularVelocity,r));}
  _applyForce(F,r,dt){const s=this.state;s.velocity=V.add(s.velocity,V.mul(F,dt/this.c.mass));s.angularVelocity=V.add(s.angularVelocity,V.mul(this._invInertiaWorld(V.cross(r,F)),dt));}
+ _applyTorque(torque,dt){this.state.angularVelocity=V.add(this.state.angularVelocity,V.mul(this._invInertiaWorld(torque),dt));}
  _contacts(){
   const c=this.c,s=this.state,out=[],q=s.orientation,half=c.wheelbase/2,track=c.track/2;
   const mounts=[[-track,-half],[track,-half],[-track,half],[track,half]];
@@ -787,20 +788,20 @@ class RigidBodyVehicle{
    if(front){wheelForward=V.norm(V.add(V.mul(forward,Math.cos(steerAngle)),V.mul(right,Math.sin(steerAngle))));wheelRight=V.norm(V.cross(wheelForward,h.normal));}
    const vLong=V.dot(h.velocity,wheelForward),vLat=V.dot(h.velocity,wheelRight),omega=s.wheelOmega[i];
    const rawSlip=(omega*c.wheelRadius-vLong)/Math.max(2,Math.abs(vLong)),relax=V.clamp(dt/Math.max(.001,c.tire.relaxation),0,1);this._slipState[i]+=(rawSlip-this._slipState[i])*relax;
-   let slipRatio=this._slipState[i],slipAngle=Math.atan2(vLat,Math.max(1,Math.abs(vLong)));
+   let slipRatio=this._slipState[i],rawSlipAngle=Math.atan2(vLat,Math.max(1,Math.abs(vLong))),angleRelax=V.clamp(dt/Math.max(.001,c.tire.relaxationAngle||c.tire.relaxation),0,1);this._slipAngleState[i]+=(rawSlipAngle-this._slipAngleState[i])*angleRelax;let slipAngle=this._slipAngleState[i];
    let wheelDrive=wheelDriveTorque[i];
    if(c.aids.tcs&&wheelDrive>0&&slipRatio>c.aids.tcsSlip){wheelDrive*=V.clamp(c.aids.tcsSlip/Math.max(.001,slipRatio),.15,1);this.aidState.tcs=true;}
    const FxRaw=c.tire.longitudinalStiffness*slipRatio+wheelDrive/c.wheelRadius;
    const FyRaw=-c.tire.corneringStiffness*slipAngle;
-   const cap=c.tire.mu*h.friction*normalLoad[i],mag=Math.hypot(FxRaw,FyRaw),scale=mag>cap&&mag>0?cap/mag:1;
-   const Fx=FxRaw*scale,Fy=FyRaw*scale;
-   this._applyForce(V.add(V.mul(wheelForward,Fx),V.mul(wheelRight,Fy)),h.arm,dt);
+   const loadSensitivityFactor=V.clamp(Math.pow(Math.max(1,normalLoad[i])/Math.max(1,c.tire.referenceLoad||3000),-(c.tire.loadSensitivity||0)),.55,1.25),frictionCoefficient=c.tire.mu*h.friction*loadSensitivityFactor,cap=frictionCoefficient*normalLoad[i],mag=Math.hypot(FxRaw,FyRaw),scale=mag>cap&&mag>0?cap/mag:1;
+   const Fx=FxRaw*scale,Fy=FyRaw*scale,aligningMoment=-Fy*(c.tire.aligningTrail||0)*V.clamp(1-Math.abs(slipAngle)/.6,0,1);
+   this._applyForce(V.add(V.mul(wheelForward,Fx),V.mul(wheelRight,Fy)),h.arm,dt);if(aligningMoment)this._applyTorque(V.mul(h.normal,aligningMoment),dt);
    let brakeTorque=brake*c.brakeTorque+(input.handbrake&&rear?c.handbrakeTorque:0);
    if(c.aids.abs&&brakeTorque>0&&Math.abs(slipRatio)>c.aids.absSlip){brakeTorque*=.35;this.aidState.abs=true;}
    const wheelAccel=(wheelDrive-Fx*c.wheelRadius-Math.sign(omega||vLong)*brakeTorque)/(c.wheelMass*c.wheelRadius*c.wheelRadius);
    s.wheelOmega[i]+=wheelAccel*dt;
    if(Math.abs(s.wheelOmega[i])<.5&&brake>.8)s.wheelOmega[i]=0;
-   forces.push({wheel:i,Fx,Fy,normalLoad:normalLoad[i],slipRatio,slipAngle,driveTorque:wheelDrive,brakeTorque});
+   forces.push({wheel:i,Fx,Fy,normalLoad:normalLoad[i],slipRatio,slipAngle,rawSlipAngle,aligningMoment,loadSensitivityFactor,frictionCoefficient,driveTorque:wheelDrive,brakeTorque});
   }
   // 5-6: external gravity, semi-implicit Euler, quaternion angular integration
   this._applyForce({x:0,y:-c.mass*c.gravity,z:0},V.zero(),dt);
