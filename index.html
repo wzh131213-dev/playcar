@@ -147,7 +147,7 @@ function pitchError(e){return Math.abs(Math.asin(V.clamp(Q.rotate(e.state.orient
 function addResult(name,ok,detail){const row=document.createElement('div');row.className='result '+(ok?'pass':'fail');const dot=document.createElement('i');dot.className='dot';const body=document.createElement('div');const title=document.createElement('b');title.textContent=(ok?'PASS · ':'FAIL · ')+name;const desc=document.createElement('span');desc.textContent=detail;body.append(title,desc);row.append(dot,body);$('test-results').append(row);}
 function runTests(){
  $('test-results').replaceChildren();const cases=[
-  ['引擎加载与版本',()=>{assert(API.version==='1.7.0','期望版本 1.7.0，实际 '+API.version);return '版本 '+API.version;}],
+  ['引擎加载与版本',()=>{assert(API.version==='1.8.0','期望版本 1.8.0，实际 '+API.version);return '版本 '+API.version;}],
   ['平面三角网格',()=>{const e=createTestEngine();runSimulation(e,.3,{});assert(e.state.position.y>-.2,'车辆位置异常');assert(stateFinite(e),'状态出现非有限数值');return '位置与网格碰撞状态有效。';}],
   ['油门加速',()=>{const e=createTestEngine();runSimulation(e,1,{gas:true});const speed=V.len(e.state.velocity);assert(speed>.5,'加速后速度过低：'+speed);assert(stateFinite(e),'加速后状态不是有限值');return '1 秒后速度 '+speed.toFixed(2)+' units/s';}],
   ['刹车减速',()=>{const e=createTestEngine();runSimulation(e,1,{gas:true});const before=V.len(e.state.velocity);runSimulation(e,.5,{brake:true});const after=V.len(e.state.velocity);assert(after<before,'刹车没有降低速度：'+before.toFixed(2)+' → '+after.toFixed(2));return before.toFixed(2)+' → '+after.toFixed(2)+' units/s';}],
