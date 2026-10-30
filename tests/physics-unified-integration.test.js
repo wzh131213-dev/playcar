@@ -67,3 +67,16 @@ test('embedded solver exposes the new tire dynamics configuration',()=>{
   assert.ok(tire.loadSensitivity>0);
   assert.ok(tire.aligningTrail>0);
 });
+
+test('all-in-one bundle exports the same Pacejka and friction-ellipse tire solver',()=>{
+  const source=bundle.slice(0,bundle.indexOf('(async function startPlayCar3DScene'));
+  const context={console};vm.runInNewContext(source,context);
+  const api=context.PlayCarRigidBody;
+  assert.equal(api.version,'2.1.0');
+  assert.equal(typeof api.calculateTireForces,'function');
+  const tire={mu:1,corneringStiffness:78000,pacejka:{enabled:true,B:0,C:1.3,E:.97,peak:1},frictionEllipse:{longitudinal:1,lateral:1}};
+  const lateral=api.calculateTireForces(0,.18,3000,1,tire);
+  const combined=api.calculateTireForces(2400,.18,3000,1,tire);
+  assert.ok(Math.abs(combined.Fy)<Math.abs(lateral.Fy));
+  assert.ok(combined.utilization<=1+1e-9);
+});
