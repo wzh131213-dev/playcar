@@ -65,3 +65,22 @@ test('friction ellipse honors separate longitudinal and lateral axes',()=>{
  const ellipse=Math.hypot(f.Fx/(3000*.7),f.Fy/(3000*.9));
  assert.ok(ellipse<=1+1e-9);
 });
+
+
+test('progressive bump stops engage before the suspension reaches its hard travel limit',()=>{
+ const makeAt=(y)=>new RigidBodyVehicle({surfaceMesh:plane(),groundPlaneY:0,position:{x:0,y,z:0}});
+ const shallow=makeAt(.3),deep=makeAt(.2);
+ shallow.advance(1/120,{});deep.advance(1/120,{});
+ const a=shallow.telemetry.suspension[0],b=deep.telemetry.suspension[0];
+ assert.ok(a.bumpStopForce>0,'bump stop should engage when raw suspension length enters the stop zone');
+ assert.ok(b.bumpStopForce>a.bumpStopForce,'deeper compression should create a stronger progressive bump-stop force');
+ assert.ok(Number.isFinite(b.bumpStopCompression));
+});
+
+test('suspension bump-stop settings can disable and tune end-stop force',()=>{
+ const disabled=new RigidBodyVehicle({surfaceMesh:plane(),groundPlaneY:0,position:{x:0,y:.3,z:0},config:{suspension:{bump:0}}});
+ const tuned=new RigidBodyVehicle({surfaceMesh:plane(),groundPlaneY:0,position:{x:0,y:.3,z:0},config:{suspension:{bump:180000}}});
+ disabled.advance(1/120,{});tuned.advance(1/120,{});
+ assert.equal(disabled.telemetry.suspension[0].bumpStopForce,0);
+ assert.ok(tuned.telemetry.suspension[0].bumpStopForce>disabled.telemetry.suspension[0].bumpStopForce);
+});
