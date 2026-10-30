@@ -49,8 +49,8 @@ test('tire grip damps lateral velocity; handbrake reduces grip for sliding',()=>
   const normal=makeEngine();normal.state.velocity={x:8,y:0,z:-12};runFor(normal,.5,{},60);
   const handbrake=makeEngine();handbrake.state.velocity={x:8,y:0,z:-12};runFor(handbrake,.5,{handbrake:1},60);
   assert.ok(Math.abs(normal.state.velocity.x)<8,'normal grip must oppose side slip');
-  assert.equal(handbrake.config.handbrakeGrip,normal.config.tireGrip,
-    'handbrake grip must equal normal tire grip');
+  assert.ok(handbrake.config.handbrakeGrip<normal.config.tireGrip,
+    'handbrake grip should be lower than normal tire grip');
 });
 test('fixed-step simulation is near-identical at 30 and 120 render frames per second',()=>{
   const a=makeEngine(),b=makeEngine();
