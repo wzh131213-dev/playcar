@@ -203,11 +203,11 @@
 
   const DEFAULTS={
     fixedTimeStep:1/120,maxSubsteps:16,maxFrameDelta:.12,
-    gravity:24,maxSpeed:78,engineAcceleration:28,brakeAcceleration:56,
-    rollingResistance:.22,aerodynamicDrag:.0026,windInfluence:.16,
+    gravity:9.81,maxSpeed:60,engineAcceleration:5.2,brakeAcceleration:9.5,
+    rollingResistance:.12,aerodynamicDrag:.0022,windInfluence:.16,
     wheelbase:2.7,maxSteerAngle:.48,highSpeedSteerScale:.48,
-    tireGrip:3.6,handbrakeGrip:3.6,handbrakeYawMultiplier:1.55,
-    reverseAcceleration:9,downforceCoefficient:.0014,maxDownforce:10,
+    tireGrip:1.05,handbrakeGrip:.72,handbrakeYawMultiplier:1.35,
+    reverseAcceleration:2.2,downforceCoefficient:.0014,maxDownforce:10,
     airYawRate:.62,airPitchRate:.55,airRollRate:.82,airPitchStability:1.8,
     wheelbaseHalf:1.35,trackHalfWidth:.78,wheelProbeY:.07,
     suspensionRestLength:.09,suspensionReach:.9,contactPositionGain:1,
@@ -220,7 +220,7 @@
   // Profiles tune handling feel; all units remain game-world units unless the host
   // deliberately chooses a metre-based scale and configures the matching values.
   const PRESETS={
-    arcade:{engineAcceleration:34,brakeAcceleration:64,tireGrip:4.2,handbrakeGrip:4.2,
+    arcade:{engineAcceleration:7.2,brakeAcceleration:12,tireGrip:1.15,handbrakeGrip:.78,
       maxSteerAngle:.55,highSpeedSteerScale:.58,rollingResistance:.18,aerodynamicDrag:.0018,
       airYawRate:.72,airPitchStability:2.2},
     simcade:{},
