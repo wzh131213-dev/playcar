@@ -36,7 +36,7 @@ class RigidBodyVehicle{
   this.mesh=options.surfaceMesh||null;this.colliders=options.colliderMeshes||[];this.groundY=options.groundPlaneY??null;
   this.accumulator=0;this.gear=1;this.engineRpm=this.c.engine.idleRpm;this.tick=0;
   this.state={position:{...(options.position||{x:0,y:.65,z:0})},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};
-  this.previous=clone(this.state);this.lastContacts=[];this.telemetry={};
+  this.previous=clone(this.state);this.lastContacts=[];this.telemetry={};this._slipState=[0,0,0,0];this.aidState={abs:false,tcs:false};
  }
  setSurfaceMesh(mesh){this.mesh=mesh;return this;}
  reset(position={x:0,y:.65,z:0}){this.state={position:{...position},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};this.previous=clone(this.state);this.accumulator=0;this.tick=0;}
