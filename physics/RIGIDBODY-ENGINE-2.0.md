@@ -1,4 +1,4 @@
-# PlayCar Rigid-Body Vehicle Physics 2.1.0
+# PlayCar Rigid-Body Vehicle Physics 2.3.0
 
 This package adds an independent rigid-body vehicle solver to the PlayCar physics branch. It is a new engine module; it does not silently replace the existing 1.8.0 simcade engine or change the current 3D lab's runtime selection.
 
@@ -61,3 +61,12 @@ Suspension contacts retain the unclamped wheel travel length so the end-stop log
 `F_bump = k_bump · x · (1 + x / range)`
 
 where `x = max(0, minTravel - rawLength)`. Configure `suspension.bump` (N/m) and `suspension.bumpStopRange` (m); setting `bump: 0` disables the bump stop. Per-wheel telemetry is available in `telemetry.suspension`, including raw length, compression, bump-stop compression, bump-stop force, and resulting normal load.
+
+
+## Longitudinal dynamic load transfer 2.3.0
+
+The solver estimates longitudinal acceleration demand from engine wheel torque and service-brake torque, bounds it by the configured tire friction limit, and transfers normal load between the front and rear axles using the configured centre-of-mass height and wheelbase:
+
+`ΔF = m · aₓ · hCG / wheelbase`
+
+Positive acceleration transfers load rearward; braking transfers load forward. The transfer is applied to the wheel normal loads before tire-force calculation, is limited by the available axle support load to prevent negative wheel loads, and preserves the sum of the four wheel normal loads. Read the signed front-axle gain in `telemetry.loadTransfer.longitudinal` (positive means forward load transfer during braking; negative means rearward transfer during acceleration). This is a force-demand estimate, not a full suspension-geometry or measured-vehicle model.
