@@ -49,7 +49,7 @@ class RigidBodyVehicle{
    const local={x:mounts[i][0],y:0,z:mounts[i][1]},r=Q.rotate(q,local),origin=V.add(s.position,r);
    const down=Q.rotate(q,{x:0,y:-1,z:0}),reach=c.suspension.max+c.wheelRadius;
    let hit=null;
-   if(this.mesh?.closestPoint){const probe=V.add(origin,V.mul(down,reach));hit=this.mesh.closestPoint(probe,reach+0.12,{x:0,y:1,z:0});}
+   if(this.mesh?.closestPoint){hit=this.mesh.closestPoint(origin,reach+c.wheelRadius,{x:0,y:1,z:0});}
    if(!hit&&Number.isFinite(this.groundY)){const dist=origin.y-this.groundY;if(dist<reach+c.wheelRadius)hit={point:{x:origin.x,y:this.groundY,z:origin.z},normal:{x:0,y:1,z:0},distance:Math.max(0,dist-c.wheelRadius),signedDistance:dist-c.wheelRadius};}
    if(!hit)continue;
    let n=V.norm(hit.normal||{x:0,y:1,z:0});if(V.dot(n,{x:0,y:1,z:0})<0)n=V.mul(n,-1);
