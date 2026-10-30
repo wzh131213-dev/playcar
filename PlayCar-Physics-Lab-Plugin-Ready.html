@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111f"><title>PlayCar · Physics Control Center</title>
+<style>
+:root{color-scheme:dark;--bg:#07111f;--panel:#0d1b2e;--panel2:#091728;--line:#203650;--muted:#91a6bd;--cyan:#76e4f7;--green:#7be0b0;--red:#ff8d9a;--text:#edf5ff}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(ellipse at 15% 0,#142a43 0,transparent 44%),var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{padding:clamp(10px,2vw,24px)}button,input,select{font:inherit}button,select{border:1px solid #36516d;border-radius:10px;background:#152942;color:var(--text);padding:10px 13px;min-height:42px;touch-action:manipulation}button{cursor:pointer}button:active{transform:scale(.985)}button.primary{background:var(--cyan);color:#07111f;border-color:var(--cyan);font-weight:800}button.danger{border-color:#704052;background:#3a202d}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+header,.wrap{max-width:1440px;margin:auto}header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px}.eyebrow{font-size:11px;letter-spacing:2.5px;color:var(--cyan);font-weight:850}h1{font-size:clamp(25px,4vw,38px);line-height:1.1;margin:4px 0}.sub,.muted{color:var(--muted);font-size:12px}.status{border:1px solid #2a4662;border-radius:999px;padding:7px 11px;color:var(--green);font-size:12px}
+.panel{background:linear-gradient(155deg,#10233a,#0a1728);border:1px solid var(--line);border-radius:16px;padding:16px;min-width:0;box-shadow:0 12px 36px #0002}.panel h2{font-size:16px;margin:0 0 4px}.topgrid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.6fr);gap:14px}.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px}
+#scene3d{height:clamp(300px,42vw,540px);min-height:300px;width:100%;overflow:hidden;border-radius:12px;background:linear-gradient(#9bbdd0,#536a7c);margin-top:12px}#scene3d canvas{display:block;width:100%;height:100%;touch-action:none}
+.scene-buttons,.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.scene-buttons button{flex:1;min-width:75px;min-height:48px;font-weight:750}.gas{background:#123a42;border-color:#28727b}.brake{background:#3a202d;border-color:#704052}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.stat{background:var(--panel2);border:1px solid #1d334a;border-radius:10px;padding:9px;min-width:0}.stat small{display:block;color:var(--muted);font-size:10px}.stat strong{display:block;font-size:17px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.control{background:var(--panel2);border:1px solid #1d334a;border-radius:10px;padding:10px;min-width:0}.controlhead{display:flex;justify-content:space-between;gap:8px;font-size:12px;margin-bottom:5px}.control input{width:100%;accent-color:var(--cyan);min-height:28px;touch-action:pan-y}
+.param-tools{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.param-tools input,.param-tools select{min-width:130px;flex:1;background:#091728;border:1px solid #29425c;color:var(--text);border-radius:9px;padding:9px}
+.params{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:600px;overflow:auto;padding-right:3px}.param{display:grid;grid-template-columns:minmax(0,1fr) 116px;gap:8px;align-items:center;background:var(--panel2);border:1px solid #1d334a;border-radius:9px;padding:8px}.param label{font-size:11px;color:#c9d8e8;overflow-wrap:anywhere}.param input{width:100%;min-width:0;background:#10243a;border:1px solid #2b4661;border-radius:7px;color:white;padding:7px;font-variant-numeric:tabular-nums}
+.data-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.data-box{background:var(--panel2);border:1px solid #1d334a;border-radius:10px;padding:10px;min-width:0}.data-box h3{font-size:12px;margin:0 0 7px;color:var(--cyan)}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:330px;overflow:auto;margin:0;color:#d6e6f5;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
+.section{margin-top:14px}.section-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.recording{font-size:12px;color:var(--muted)}.recording.active{color:var(--green)}.footer{max-width:1440px;margin:16px auto 0;color:#71879e;font-size:11px}
+@media(max-width:900px){.topgrid,.layout{grid-template-columns:1fr}.params{max-height:540px}}@media(max-width:520px){body{padding:9px}.panel{padding:12px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.controls{grid-template-columns:1fr 1fr}.params{grid-template-columns:1fr}.param{grid-template-columns:minmax(0,1fr) 110px}.data-grid{grid-template-columns:1fr}.scene-buttons button{font-size:12px;padding:8px 5px}}
+</style>
+</head>
+<body>
+<header><div><div class="eyebrow">PLAYCAR / PHYSICS CONTROL CENTER</div><h1>车辆物理控制与数据中心</h1><p class="sub">统一控制 3D 车辆与物理引擎 · 全参数实时调节 · 全量状态监控 · JSON / CSV 导出</p></div><div class="status" id="runtime-status">正在连接物理引擎…</div></header>
+<div class="wrap">
+<section class="topgrid">
+ <div class="panel"><div class="section-head"><div><h2>实时 3D 车辆</h2><div class="muted">这里的车辆与下方控制台使用同一个物理引擎实例</div></div><div class="muted" id="scene-status">等待 3D 初始化</div></div>
+  <div id="scene3d" aria-label="3D 赛车模拟场景"></div>
+  <div class="scene-buttons"><button id="scene-left">◀ 左转</button><button id="scene-gas" class="gas">▲ 油门</button><button id="scene-brake" class="brake">▼ 刹车 / 倒车</button><button id="scene-right">右转 ▶</button><button id="scene-handbrake">手刹</button></div>
+  <div class="actions"><button class="primary" id="reset-car">重置车辆</button><button id="scene-follow">跟随视角：开</button></div>
+ </div>
+ <div class="panel"><h2>核心实时数据</h2><div class="muted">直接读取当前物理引擎快照</div><div class="stats">
+  <div class="stat"><small>速度</small><strong id="stat-speed">0</strong></div><div class="stat"><small>纵向速度</small><strong id="stat-long">0</strong></div><div class="stat"><small>横向速度</small><strong id="stat-lat">0</strong></div><div class="stat"><small>侧滑角</small><strong id="stat-slip">0</strong></div>
+  <div class="stat"><small>位置 X / Y / Z</small><strong id="stat-pos">0 / 0 / 0</strong></div><div class="stat"><small>垂直速度</small><strong id="stat-vy">0</strong></div><div class="stat"><small>轮胎接触数</small><strong id="stat-wheels">0</strong></div><div class="stat"><small>抓地状态</small><strong id="stat-grip">AIR</strong></div>
+  <div class="stat"><small>物理 Tick</small><strong id="stat-tick">0</strong></div><div class="stat"><small>单步耗时</small><strong id="stat-ms">0 ms</strong></div><div class="stat"><small>碰撞累计</small><strong id="stat-collisions">0</strong></div><div class="stat"><small>丢弃时间</small><strong id="stat-dropped">0</strong></div>
+ </div><div class="section"><h2>实时控制输入</h2><div class="controls" id="control-inputs"></div></div></div>
+</section>
+<section class="layout">
+ <div class="panel"><div class="section-head"><div><h2>全部物理参数</h2><div class="muted">修改后立即写入当前运行中的引擎配置</div></div><span class="muted" id="param-count">0 个参数</span></div>
+  <div class="param-tools"><select id="preset"><option value="simcade">Simcade 默认</option><option value="arcade">Arcade</option><option value="simulation">Simulation</option></select><input id="param-search" placeholder="搜索参数名称…" aria-label="搜索参数"><button id="restore-defaults">恢复默认</button></div>
+  <div class="params" id="params"><div class="muted">等待引擎参数…</div></div>
+ </div>
+ <div class="panel"><div class="section-head"><div><h2>天气与环境</h2><div class="muted">风力与路面湿滑度直接影响当前车辆</div></div></div>
+  <div class="controls"><div class="control"><div class="controlhead"><label for="wind-x">横向风 X</label><b id="wind-x-value">0</b></div><input id="wind-x" type="range" min="-20" max="20" step=".1" value="0"></div><div class="control"><div class="controlhead"><label for="wind-z">纵向风 Z</label><b id="wind-z-value">0</b></div><input id="wind-z" type="range" min="-20" max="20" step=".1" value="0"></div><div class="control"><div class="controlhead"><label for="wetness">路面湿滑度</label><b id="wetness-value">0%</b></div><input id="wetness" type="range" min="0" max="100" value="0"></div></div>
+  <div class="section"><h2>数据记录与导出</h2><div class="muted">记录运行时状态、全部配置、天气、输入和性能数据。记录频率约 10 次 / 秒。</div><div class="actions"><button class="primary" id="record-start">开始记录</button><button id="record-stop">暂停记录</button><button class="danger" id="record-clear">清空记录</button></div><div class="actions"><button id="export-json">导出完整 JSON</button><button id="export-csv">导出 CSV 时间序列</button><button id="export-config">导出参数配置</button></div><p class="recording" id="record-info">尚未开始记录 · 0 条数据</p></div>
+  <div class="section"><h2>引擎自动检查</h2><div class="actions"><button id="run-checks">运行引擎检查</button></div><pre id="check-results">等待检查。</pre></div>
+ </div>
+</section>
+<section class="panel section"><div class="section-head"><div><h2>完整数据快照</h2><div class="muted">状态、遥测、调试计时、输入、天气、检查点、碰撞和网格数据</div></div><button id="copy-snapshot">复制快照 JSON</button></div>
+ <div class="data-grid"><div class="data-box"><h3>车辆状态 State</h3><pre id="data-state">{}</pre></div><div class="data-box"><h3>遥测 Telemetry</h3><pre id="data-telemetry">{}</pre></div><div class="data-box"><h3>调试 Debug</h3><pre id="data-debug">{}</pre></div><div class="data-box"><h3>引擎与环境 Environment</h3><pre id="data-engine">{}</pre></div></div>
+</section>
+</div>
+<div class="footer">PlayCar Physics Engine · 控制与数据由同一运行实例提供。导出文件在本地浏览器生成，不会上传到服务器。</div>
+<script src="./physics/playcar-physics-all-in-one.js?v=2.0.0"></script>
+<script>
+(()=>{'use strict';
+/*
+ * PLAYCAR PHYSICS LAB — STABLE ENGINE PLUG-IN CONTRACT (API v1)
+ *
+ * Future physics engines should implement/register a provider in the engine
+ * bundle at the stable script path below. The control-center UI does not need
+ * to be edited when the solver is replaced.
+ *
+ * Provider:
+ *   window.PlayCarPhysicsLab.registerProvider({
+ *     apiVersion: 1,
+ *     name: 'My physics engine',
+ *     createRuntime({window, document}) { return runtimeFacade; }
+ *   });
+ *
+ * runtimeFacade contract (same contract for every solver):
+ *   { engine: {config, preset, setConfig(patch), setWeather(data),
+ *       setInput(input), reset(), getSnapshot(), getTelemetry(),
+ *       snapshot(), debugSnapshot? },
+ *     setConfig(patch), setWeather(data), setInput(input), reset(),
+ *     snapshot() }
+ *
+ * The facade keeps the UI independent from solver internals. An engine that
+ * does not register a provider automatically falls back to PlayCarRuntime.
+ */
+const PhysicsLab=window.PlayCarPhysicsLab||(window.PlayCarPhysicsLab={
+  apiVersion:1, provider:null, providerError:null,
+  registerProvider(provider){
+    if(!provider||provider.apiVersion!==1||typeof provider.createRuntime!=='function')
+      throw new Error('物理引擎插件接口不兼容：需要 API v1 和 createRuntime()');
+    this.provider=provider;this.providerError=null;
+    window.dispatchEvent(new CustomEvent('playcar:provider-ready',{detail:{name:provider.name||'Custom Physics Provider'}}));
+  },
+  createRuntime(){
+    if(this.provider)return this.provider.createRuntime({window,document});
+    return window.PlayCarRuntime||null;
+  }
+});
+const $=id=>document.getElementById(id);let runtime=null,recording=false,records=[],lastRecord=0,lastSnapshot=null;
+const labels={fixedTimeStep:'固定物理步长',maxSubsteps:'最大子步数',maxFrameDelta:'最大帧间隔',gravity:'重力加速度',maxSpeed:'最高速度',engineAcceleration:'发动机加速度',brakeAcceleration:'制动加速度',rollingResistance:'滚动阻力',aerodynamicDrag:'空气阻力',windInfluence:'风力影响',wheelbase:'轴距',maxSteerAngle:'最大转向角',highSpeedSteerScale:'高速转向缩放',tireGrip:'轮胎抓地系数 μ',handbrakeGrip:'手刹抓地系数',handbrakeYawMultiplier:'手刹偏航倍率',reverseAcceleration:'倒车加速度',downforceCoefficient:'下压力系数',maxDownforce:'最大下压力',airYawRate:'空中偏航速率',airPitchRate:'空中俯仰速率',airRollRate:'空中翻滚速率',airPitchStability:'空中俯仰稳定',wheelbaseHalf:'半轴距',trackHalfWidth:'轮距半宽',wheelProbeY:'轮胎探针高度',suspensionRestLength:'悬挂静止长度',suspensionReach:'悬挂检测距离',contactPositionGain:'接触位置修正',collisionRestitution:'碰撞恢复系数',collisionFriction:'碰撞摩擦系数',surfaceCollisionReach:'路面碰撞检测距离',surfaceSeparation:'路面分离间隙',surfaceCollisionRestitution:'路面碰撞恢复系数',maxSurfaceCollisionIterations:'路面碰撞迭代次数',bodyCenterY:'车身中心高度',maxCollisionIterations:'碰撞迭代次数',bodyHalfExtents:'车身半尺寸'};
+const inputDefs=[['throttle','油门',0,1,.01],['brake','刹车',0,1,.01],['steer','转向',-1,1,.01],['handbrake','手刹',0,1,.01],['pitch','空中俯仰',-1,1,.01],['roll','空中翻滚',-1,1,.01],['yaw','空中偏航',-1,1,.01]];
+function status(t,ok=true){$('runtime-status').textContent=t;$('runtime-status').style.color=ok?'var(--green)':'var(--red)';}
+function fmt(v){return Number.isFinite(v)?v.toFixed(3):String(v);}
+function setInput(k,v){if(!runtime)return;const map={throttle:'gas',steer:'steer'};if(k==='steer'){runtime.setInput({left:v<-.001,right:v>.001,steer:v});}else runtime.setInput({[map[k]||k]:v});}
+function buildInputs(){const host=$('control-inputs');host.replaceChildren();for(const [key,label,min,max,step] of inputDefs){const box=document.createElement('div');box.className='control';const head=document.createElement('div');head.className='controlhead';const l=document.createElement('label');l.textContent=label;const out=document.createElement('b');out.textContent='0';head.append(l,out);const range=document.createElement('input');range.type='range';range.min=min;range.max=max;range.step=step;range.value=0;range.setAttribute('aria-label',label);range.addEventListener('input',()=>{out.textContent=Number(range.value).toFixed(2);setInput(key,Number(range.value));});box.append(head,range);host.append(box);}}
+function renderParams(){const host=$('params');host.replaceChildren();if(!runtime)return;const cfg=runtime.engine.config,query=$('param-search').value.trim().toLowerCase();let count=0;
+for(const [key,value] of Object.entries(cfg)){if(key==='bodyHalfExtents'){for(const axis of ['x','y','z']){const name=key+'.'+axis;if(query&&!name.toLowerCase().includes(query)&&!(labels[key]+' '+axis).toLowerCase().includes(query))continue;count++;addParam(host,name,labels[key]+' · '+axis,value[axis],v=>runtime.setConfig({bodyHalfExtents:{[axis]:v}}));}continue;}if(query&&!key.toLowerCase().includes(query)&&!(labels[key]||'').toLowerCase().includes(query))continue;count++;addParam(host,key,labels[key]||key,value,v=>runtime.setConfig({[key]:v}));}
+$('param-count').textContent=count+' 个参数';}
+function addParam(host,key,label,value,onSet){const row=document.createElement('div');row.className='param';const l=document.createElement('label');l.textContent=label+' · '+key;const input=document.createElement('input');input.type='number';input.step='any';input.value=String(value);input.setAttribute('aria-label',label);input.addEventListener('change',()=>{const n=Number(input.value);if(!Number.isFinite(n)){input.value=String(value);return;}try{onSet(n);input.style.borderColor='#28727b';}catch(e){input.value=String(value);input.style.borderColor='#ff8d9a';$('check-results').textContent='参数修改失败：'+e.message;}});row.append(l,input);host.append(row);}
+function snapshot(){return runtime?runtime.snapshot():null;}
+function update(){if(!runtime)return;const s=snapshot();lastSnapshot=s;const t=s.telemetry,d=s.debug,p=s.state;
+$('stat-speed').textContent=fmt(t.speed);$('stat-long').textContent=fmt(t.longitudinalSpeed);$('stat-lat').textContent=fmt(t.lateralSpeed);$('stat-slip').textContent=(t.slipAngle*180/Math.PI).toFixed(2)+'°';$('stat-pos').textContent=[p.position.x,p.position.y,p.position.z].map(v=>Number(v).toFixed(2)).join(' / ');$('stat-vy').textContent=fmt(t.verticalSpeed);$('stat-wheels').textContent=String(t.wheelContacts);$('stat-grip').textContent=p.gripState;$('stat-tick').textContent=String(p.tick);$('stat-ms').textContent=fmt(d.physicsMs)+' ms';$('stat-collisions').textContent=String(d.collisionEvents);$('stat-dropped').textContent=fmt(d.droppedTime);
+$('data-state').textContent=JSON.stringify(s.state,null,2);$('data-telemetry').textContent=JSON.stringify(s.telemetry,null,2);$('data-debug').textContent=JSON.stringify({debug:s.debug,timing:s.timing},null,2);$('data-engine').textContent=JSON.stringify({version:s.version,preset:s.preset,weather:s.weather,input:s.input,checkpoint:{index:s.currentCheckpointIndex,items:s.checkpoints},geometry:{surfaceTriangles:s.surfaceTriangleCount,colliderMeshes:s.colliderMeshCount},config:s.config},null,2);
+if(recording){const now=performance.now();if(now-lastRecord>=100){records.push({time:Date.now(),...s});lastRecord=now;$('record-info').textContent='正在记录 · '+records.length+' 条数据';$('record-info').classList.add('active');}}
+}
+function download(name,type,data){const blob=new Blob([data],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
+function flatten(obj,prefix='',out={}){for(const [k,v] of Object.entries(obj||{})){const key=prefix?prefix+'.'+k:k;if(v&&typeof v==='object'&&!Array.isArray(v))flatten(v,key,out);else out[key]=Array.isArray(v)?JSON.stringify(v):v;}return out;}
+function csvEscape(v){const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function csvText(rows){if(!rows.length)return '';const flat=rows.map(flatten),keys=[...new Set(flat.flatMap(x=>Object.keys(x)))];return [keys.map(csvEscape).join(','),...flat.map(row=>keys.map(k=>csvEscape(row[k])).join(','))].join('\r\n');}
+function start(){if(!runtime)return;recording=true;lastRecord=0;$('record-info').textContent='正在记录 · '+records.length+' 条数据';$('record-info').classList.add('active');}
+function stop(){recording=false;$('record-info').textContent='已暂停 · '+records.length+' 条数据';$('record-info').classList.remove('active');}
+function attach(){
+  if(runtime)return;
+  try{runtime=PhysicsLab.createRuntime();}catch(e){PhysicsLab.providerError=e;status('物理引擎插件连接失败：'+e.message,false);$('scene-status').textContent='插件接口错误';return;}
+  if(!runtime)return;
+  const engineName=PhysicsLab.provider?.name||runtime.engine?.constructor?.name||'PlayCar Runtime';
+  status('物理引擎已连接 · '+engineName);$('scene-status').textContent='3D 场景与控制台共用统一接口';
+  buildInputs();renderParams();update();setInterval(update,100);
+}
+function setWeather(){if(!runtime)return;runtime.setWeather({wind:{x:Number($('wind-x').value),z:Number($('wind-z').value)},wetness:Number($('wetness').value)/100});$('wind-x-value').textContent=$('wind-x').value;$('wind-z-value').textContent=$('wind-z').value;$('wetness-value').textContent=$('wetness').value+'%';}
+function hold(id,key,value){const el=$(id);if(!el)return;const down=e=>{e.preventDefault();setInput(key,value);try{el.setPointerCapture(e.pointerId)}catch(_){}};const up=e=>{if(e)e.preventDefault();setInput(key,key==='steer'?0:0);};el.addEventListener('pointerdown',down);['pointerup','pointercancel','lostpointercapture'].forEach(n=>el.addEventListener(n,up));}
+buildInputs();hold('scene-left','steer',-1);hold('scene-right','steer',1);hold('scene-gas','throttle',1);hold('scene-brake','brake',1);hold('scene-handbrake','handbrake',1);
+$('reset-car').addEventListener('click',()=>{if(runtime){runtime.reset();buildInputs();}});
+
+$('wind-x').addEventListener('input',setWeather);$('wind-z').addEventListener('input',setWeather);$('wetness').addEventListener('input',setWeather);
+$('param-search').addEventListener('input',renderParams);
+$('restore-defaults').addEventListener('click',()=>{if(!runtime)return;runtime.setConfig(runtime.engine.constructor?window.PlayCarPhysicsEngine.defaults:{});$('preset').value='simcade';runtime.engine.preset='simcade';renderParams();});
+$('preset').addEventListener('change',()=>{if(!runtime)return;const name=$('preset').value,defaults=window.PlayCarPhysicsEngine.defaults,preset=window.PlayCarPhysicsEngine.presets[name]||{};runtime.setConfig({...defaults,...preset,bodyHalfExtents:{...defaults.bodyHalfExtents,...(preset.bodyHalfExtents||{})}});runtime.engine.preset=name;renderParams();});
+$('record-start').addEventListener('click',start);$('record-stop').addEventListener('click',stop);$('record-clear').addEventListener('click',()=>{records=[];$('record-info').textContent='记录已清空 · 0 条数据';});
+$('export-json').addEventListener('click',()=>{if(!runtime)return;download('playcar-full-data-'+Date.now()+'.json','application/json;charset=utf-8',JSON.stringify({exportedAt:new Date().toISOString(),engine:snapshot(),recordCount:records.length,records},null,2));});
+$('export-csv').addEventListener('click',()=>download('playcar-telemetry-'+Date.now()+'.csv','text/csv;charset=utf-8','\ufeff'+csvText(records)));
+$('export-config').addEventListener('click',()=>{if(!runtime)return;download('playcar-physics-config-'+Date.now()+'.json','application/json;charset=utf-8',JSON.stringify({version:runtime.engine.constructor.name,preset:runtime.engine.preset,config:runtime.engine.config,weather:runtime.engine.weather},null,2));});
+$('copy-snapshot').addEventListener('click',()=>{if(!runtime)return;const data=JSON.stringify(snapshot(),null,2);if(navigator.clipboard?.writeText)navigator.clipboard.writeText(data).then(()=>$('copy-snapshot').textContent='已复制').catch(()=>$('copy-snapshot').textContent='复制失败');});
+$('run-checks').addEventListener('click',()=>{if(!runtime)return;const e=runtime.engine,results=[];const check=(name,fn)=>{try{fn();results.push('PASS · '+name);}catch(err){results.push('FAIL · '+name+' — '+err.message);}};check('参数完整且有限',()=>{for(const [k,v] of Object.entries(e.config)){if(typeof v==='number'&&!Number.isFinite(v))throw Error(k+' 非有限');}});check('快照结构',()=>{const s=e.getSnapshot();for(const k of ['state','telemetry','debug','config','weather','input','timing'])if(!(k in s))throw Error('缺少 '+k);});check('参数校验拒绝非法值',()=>{let rejected=false;try{e.setConfig({gravity:NaN});}catch(_){rejected=true;}if(!rejected)throw Error('NaN 未被拒绝');});check('实时控制接口',()=>{const before=e.lastInput;e.setInput({throttle:.25});if(e.lastInput.throttle!==.25)throw Error('油门未写入');e.setInput(before);});$('check-results').textContent=results.join('\n');});
+window.addEventListener('playcar:ready',attach);
+window.addEventListener('playcar:provider-ready',attach);
+if(PhysicsLab.provider||window.PlayCarRuntime)attach();
+else setTimeout(()=>{if(!runtime)status('等待物理引擎插件；检查引擎入口 / WebGL',false);},12000);
+})();
+</script>
+</body></html>
