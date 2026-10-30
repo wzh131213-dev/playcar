@@ -724,7 +724,7 @@ class RigidBodyVehicle{
   this.mesh=options.surfaceMesh||null;this.colliders=options.colliderMeshes||[];this.groundY=options.groundPlaneY??null;
   this.accumulator=0;this.gear=1;this.engineRpm=this.c.engine.idleRpm;this.tick=0;
   this.state={position:{...(options.position||{x:0,y:.65,z:0})},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};
-  this.previous=clone(this.state);this.lastContacts=[];this.telemetry={};
+  this.previous=clone(this.state);this.lastContacts=[];this.telemetry={};this._slipState=[0,0,0,0];this.aidState={abs:false,tcs:false};
  }
  setSurfaceMesh(mesh){this.mesh=mesh;return this;}
  reset(position={x:0,y:.65,z:0}){this.state={position:{...position},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};this.previous=clone(this.state);this.accumulator=0;this.tick=0;}
@@ -744,7 +744,7 @@ class RigidBodyVehicle{
    let n=V.norm(hit.normal||{x:0,y:1,z:0});if(V.dot(n,{x:0,y:1,z:0})<0)n=V.mul(n,-1);
    const length=V.clamp(hit.distance-c.wheelRadius, c.suspension.min,c.suspension.max),compression=c.suspension.rest-length;
    const point=hit.point||V.sub(origin,V.mul(n,hit.distance)),arm=V.sub(point,s.position),pv=this._pointVelocity(arm),vn=V.dot(pv,n);
-   out.push({index:i,point,normal:n,arm,compression,length,normalVelocity:vn,velocity:pv,local});
+   out.push({index:i,point,normal:n,arm,compression,length,normalVelocity:vn,velocity:pv,local,friction:Number.isFinite(hit.friction)?Math.max(0,hit.friction):1});
   }
   return out;
  }
@@ -759,6 +759,7 @@ class RigidBodyVehicle{
    const load=Math.max(0,spring);normalLoad[h.index]=load;
    const F=V.mul(h.normal,load);this._applyForce(F,h.arm,dt);
   }
+  for(const [left,right,rate] of [[0,1,c.antiRoll.front],[2,3,c.antiRoll.rear]]){const a=contacts.find(h=>h.index===left),b=contacts.find(h=>h.index===right);if(a&&b&&rate>0){const transfer=(a.compression-b.compression)*rate,fa=Math.max(-normalLoad[left],transfer),fb=Math.max(-normalLoad[right],-transfer);normalLoad[left]+=fa;normalLoad[right]+=fb;this._applyForce(V.mul(a.normal,fa),a.arm,dt);this._applyForce(V.mul(b.normal,fb),b.arm,dt);}}
   const forward=Q.rotate(s.orientation,{x:0,y:0,z:-1}),right=Q.rotate(s.orientation,{x:1,y:0,z:0});
   const speed=V.len(s.velocity),airDrag=.5*c.airDensity*c.dragArea*speed*speed;
   if(speed>1e-5)this._applyForce(V.mul(s.velocity,-airDrag/speed),V.zero(),dt);
@@ -771,21 +772,26 @@ class RigidBodyVehicle{
   if(this.engineRpm>e.redline*.96&&this.gear<e.gears.length)this.gear++;
   if(this.engineRpm<e.redline*.55&&this.gear>1)this.gear--;
   const torque=e.peakTorque*throttle*V.clamp(1-Math.abs(this.engineRpm-3800)/6500,.25,1);
-  const driveTorque=torque*e.gears[this.gear-1]*e.finalDrive*e.efficiency/2;
-  const steerAngle=steer*.48;
+  const totalDriveTorque=torque*e.gears[this.gear-1]*e.finalDrive*e.efficiency;
+  const driveType=c.differential.type||'rwd';const driven=[0,1,2,3].filter(i=>driveType==='awd'||(driveType==='fwd'&&i<2)||(driveType!=='fwd'&&driveType!=='awd'&&i>=2));
+  const steerAngle=steer*c.steering.maxAngle*(1-(1-c.steering.highSpeedScale)*V.clamp(speed/55,0,1));
   for(const h of contacts){
    const i=h.index,rear=i>=2,front=!rear;
    let wheelForward=forward,wheelRight=right;
    if(front){wheelForward=V.norm(V.add(V.mul(forward,Math.cos(steerAngle)),V.mul(right,Math.sin(steerAngle))));wheelRight=V.norm(V.cross(wheelForward,h.normal));}
    const vLong=V.dot(h.velocity,wheelForward),vLat=V.dot(h.velocity,wheelRight),omega=s.wheelOmega[i];
-   const slipRatio=(omega*c.wheelRadius-vLong)/Math.max(2,Math.abs(vLong)),slipAngle=Math.atan2(vLat,Math.max(1,Math.abs(vLong)));
-   const FxRaw=c.tire.longitudinalStiffness*slipRatio+(rear?driveTorque/c.wheelRadius:0);
+   const rawSlip=(omega*c.wheelRadius-vLong)/Math.max(2,Math.abs(vLong)),relax=V.clamp(dt/Math.max(.001,c.tire.relaxation),0,1);this._slipState[i]+=(rawSlip-this._slipState[i])*relax;
+   let slipRatio=this._slipState[i],slipAngle=Math.atan2(vLat,Math.max(1,Math.abs(vLong)));
+   let wheelDrive=driven.includes(i)?totalDriveTorque/Math.max(1,driven.length):0;
+   if(c.aids.tcs&&wheelDrive>0&&slipRatio>c.aids.tcsSlip){wheelDrive*=V.clamp(c.aids.tcsSlip/Math.max(.001,slipRatio),.15,1);this.aidState.tcs=true;}
+   const FxRaw=c.tire.longitudinalStiffness*slipRatio+wheelDrive/c.wheelRadius;
    const FyRaw=-c.tire.corneringStiffness*slipAngle;
-   const cap=c.tire.mu*normalLoad[i],mag=Math.hypot(FxRaw,FyRaw),scale=mag>cap&&mag>0?cap/mag:1;
+   const cap=c.tire.mu*h.friction*normalLoad[i],mag=Math.hypot(FxRaw,FyRaw),scale=mag>cap&&mag>0?cap/mag:1;
    const Fx=FxRaw*scale,Fy=FyRaw*scale;
    this._applyForce(V.add(V.mul(wheelForward,Fx),V.mul(wheelRight,Fy)),h.arm,dt);
-   const brakeTorque=brake*c.brakeTorque+(input.handbrake&&rear?c.handbrakeTorque:0);
-   const wheelAccel=((rear?driveTorque:0)-Fx*c.wheelRadius-Math.sign(omega||vLong)*brakeTorque)/(c.wheelMass*c.wheelRadius*c.wheelRadius);
+   let brakeTorque=brake*c.brakeTorque+(input.handbrake&&rear?c.handbrakeTorque:0);
+   if(c.aids.abs&&brakeTorque>0&&Math.abs(slipRatio)>c.aids.absSlip){brakeTorque*=.35;this.aidState.abs=true;}
+   const wheelAccel=(wheelDrive-Fx*c.wheelRadius-Math.sign(omega||vLong)*brakeTorque)/(c.wheelMass*c.wheelRadius*c.wheelRadius);
    s.wheelOmega[i]+=wheelAccel*dt;
    if(Math.abs(s.wheelOmega[i])<.5&&brake>.8)s.wheelOmega[i]=0;
    forces.push({wheel:i,Fx,Fy,normalLoad:normalLoad[i],slipRatio,slipAngle});
@@ -846,6 +852,7 @@ if(typeof module!=='undefined'&&module.exports)module.exports=root.PlayCarRigidB
       const cfg={fixedDt:c.fixedTimeStep,maxSubsteps:c.maxSubsteps,mass:1250,gravity:c.gravity,
         inertia:{x:520,y:1450,z:1650},com:{x:0,y:.52,z:0},wheelbase:c.wheelbase,track:c.trackHalfWidth*2,wheelRadius:.37,
         suspension:{rest:.32,min:.08,max:.48,stiffness:32000,damping:4200,bump:90000},
+        antiRoll:{front:8500,rear:6500},differential:{type:'rwd',limitedSlip:2.2},aids:{abs:true,tcs:true,absSlip:.18,tcsSlip:.22},steering:{maxAngle:c.maxSteerAngle,highSpeedScale:c.highSpeedSteerScale},
         tire:{mu:c.tireGrip,corneringStiffness:78000,longitudinalStiffness:95000,relaxation:.04},
         engine:{peakTorque:280,idleRpm:900,redline:6500,finalDrive:3.9,gears:[3.2,2.1,1.5,1.18,.94,.78],efficiency:.88},
         brakeTorque:4200,handbrakeTorque:6500,dragArea:.68,airDensity:1.225,
