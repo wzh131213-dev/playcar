@@ -201,6 +201,7 @@ test('wheel tire frame follows sloped-road tangent and remains orthonormal',()=>
  const mesh={closestPoint(p,max=Infinity){const d=p.x*.25-p.y-p.z*.12;const distance=Math.abs(d)/Math.hypot(.25,1,.12);if(distance>max)return null;const point={x:p.x-normal.x*d/Math.hypot(.25,1,.12),y:p.y-normal.y*d/Math.hypot(.25,1,.12),z:p.z-normal.z*d/Math.hypot(.25,1,.12)};return{point,normal,distance,signedDistance:d/Math.hypot(.25,1,.12)};}};
  const e=new RigidBodyVehicle({surfaceMesh:mesh,position:{x:0,y:.5,z:0}});
  const h=e._contacts({steer:.2})[0];
+ assert.ok(h.tireForward.x>0,'positive steering must rotate the wheel forward vector toward vehicle-right');
  assert.ok(Math.abs(V.dot(h.tireForward,h.normal))<1e-6);
  assert.ok(Math.abs(V.dot(h.tireRight,h.normal))<1e-6);
  assert.ok(Math.abs(V.dot(h.tireForward,h.tireRight))<1e-6);
