@@ -28,7 +28,8 @@ host.appendChild(renderer.domElement);
 renderer.domElement.setAttribute('aria-label', '可交互三维赛车物理模拟场景');
 renderer.domElement.style.touchAction = 'none';
 
-scene.add(new THREE.HemisphereLight(0xdceeff, 0x344455, 2.0));
+const hemiLight = new THREE.HemisphereLight(0xdceeff, 0x344455, 2.0);
+scene.add(hemiLight);
 const sun = new THREE.DirectionalLight(0xfff1d7, 3.1);
 sun.position.set(-55, 80, 35);
 sun.castShadow = true;
@@ -507,6 +508,23 @@ const runtime = {
   reset() { resetVehicle(); return vehicle.getSnapshot(); },
   snapshot() { return vehicle.getSnapshot(); }
 };
+/* Weather visuals follow engine.weather: the control center's wetness/wind
+ * sliders and the preset menu both end up here through setWeather(). */
+const weatherVisuals = (typeof createPlayCarWeatherVisuals === 'function')
+  ? (() => {
+      try {
+        return createPlayCarWeatherVisuals(THREE, scene, {
+          camera, renderer, sun, hemi: hemiLight,
+          materials: [mats.road, mats.ground, mats.line, mats.wall]
+        });
+      } catch (error) {
+        console.warn('PlayCar weather visuals unavailable:', error && error.message);
+        return null;
+      }
+    })()
+  : null;
+runtime.weatherVisuals = weatherVisuals;
+
 window.PlayCarRuntime = runtime;
 window.dispatchEvent(new CustomEvent('playcar:ready', { detail: { version: EngineAPI.version } }));
 
@@ -551,6 +569,20 @@ function render() {
     roll: Number(input.roll) || 0,
     yaw: Number(input.yaw) || 0
   });
+
+  if (weatherVisuals) {
+    const w = vehicle.weather || {};
+    const wet = Number.isFinite(w.wetness) ? w.wetness : 0;
+    const snow = Number.isFinite(w.snow) ? w.snow : 0;
+    weatherVisuals.update(dt, {
+      wetness: wet,
+      rain: Number.isFinite(w.rain) ? w.rain : wet,
+      snow,
+      fog: Number.isFinite(w.fog) ? w.fog : wet * 0.5,
+      wind: w.wind || { x: 0, z: 0 },
+      sun: Math.max(0.35, 1 - 0.45 * wet - 0.35 * snow)
+    });
+  }
 
   const pose = rigid.interpolatedState();
   const wheelState = vehicle.getWheelState();

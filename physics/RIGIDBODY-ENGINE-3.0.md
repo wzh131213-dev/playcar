@@ -187,6 +187,33 @@ All three are configurable and exposed in telemetry.
   body does not spin up. Active pitch/roll input disables the passive levelling
   spring; releasing it restores the spring.
 
+### 3.6 Weather and environment
+
+`physics/weather-system.js` (`PlayCarWeather`) owns the environment state and
+`physics/weather-visuals.js` renders it; the engine only consumes the values.
+
+- **Surface water.** `engine.setWeather({ wetness })` sets
+  `tire.mu = tireGrip · (1 − 0.42·wetness) · (1 − 0.32·snow) · cold · heat`,
+  where `cold = 1 − min(0.12, max(0, 7 − T)·0.012)` and
+  `heat = 1 − min(0.06, max(0, T − 32)·0.004)`.
+- **Wind** is the air velocity in world space (`rigidBody.c.wind`). Aerodynamics
+  use the relative airspeed `v − wind` for drag and downforce, and the lateral
+  component `v_lat = (v − wind)·right` produces a side force
+  `F = −0.5·ρ·|v−wind|·sideArea·v_lat` applied at a centre of pressure
+  `aeroYawArm` behind the CG. That weathervanes the car into the wind.
+- **Temperature** sets the air density `ρ = 1.225·288.15/(273.15 + T)` and
+  therefore drag, downforce and the side force.
+- The model adds smooth preset transitions, surface wetting/drying rates,
+  deterministic lightning (`seed`) and `gripFactor()` / `airDensity()` helpers
+  that mirror the engine mapping exactly.
+
+```js
+const weather = PlayCarWeather.create({ preset: 'clear' });
+weather.setPreset('storm', { duration: 6 });
+weather.update(dt);
+weather.applyTo(engine);       // wetness, wind, rain, snow, fog, temperature, ρ
+```
+
 ## 4. Public API
 
 ### 4.1 `RigidBodyVehicle`
@@ -265,7 +292,8 @@ Adds the legacy surface and the rigid model:
   absActive, tcsActive, escActive, aids: { abs, tcs, esc },
   antiRoll, loadTransfer: { longitudinal, lateral },
   differential, driveLayout, drivenWheels: [..],
-  chassisContacts, collisionImpacts
+  chassisContacts, collisionImpacts,
+  airSpeed, crosswind, sideForce, wind: { x, y, z }
 }
 ```
 
@@ -330,8 +358,10 @@ world.addStaticMesh(walls);
 ## 6. Validation and performance
 
 - `npm test` — 134 Node tests (`node --test`), no browser required.
-- `physics/physics-checks.js` — 10 isolated PASS/FAIL scenarios shared by the
-  Node suite and `test-scene.html`.
+- `physics/physics-checks.js` — 11 isolated PASS/FAIL scenarios shared by the
+  Node suite and `test-scene.html` (including crosswind and snow grip).
+- `physics/weather-system.js` — presets, transitions, wetting/drying,
+  deterministic lightning, wind vector and the physics mapping.
 - `npm run smoke` — boots the real `physics/scene3d.js` with the vendored
   Three.js and a stubbed WebGL renderer, drives it for 300 frames, and checks the
   car, geometry, telemetry and scene status.

@@ -36,7 +36,8 @@ host.appendChild(renderer.domElement);
 renderer.domElement.setAttribute('aria-label', 'PlayCar 物理测试场三维场景');
 renderer.domElement.style.touchAction = 'none';
 
-scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x1b2634, 1.9));
+const hemiLight = new THREE.HemisphereLight(0xcfe6ff, 0x1b2634, 1.9);
+scene.add(hemiLight);
 const sun = new THREE.DirectionalLight(0xffffff, 2.7);
 sun.position.set(-45, 75, 40);
 sun.castShadow = true;
@@ -353,10 +354,55 @@ for (let i = 0; i < 4; i++) {
   addPropVisual('crate', body);
 }
 
+/* ------------------------------------------------------------------ */
+/* Weather                                                            */
+/* ------------------------------------------------------------------ */
+
+const weatherAPI = typeof PlayCarWeather !== 'undefined' ? PlayCarWeather
+  : (typeof window !== 'undefined' && window.PlayCarWeather ? window.PlayCarWeather : null);
+const weatherSystem = weatherAPI ? new weatherAPI.WeatherSystem({ preset: 'clear' }) : null;
+const createWeatherVisuals = typeof createPlayCarWeatherVisuals === 'function' ? createPlayCarWeatherVisuals
+  : (typeof window !== 'undefined' && window.createPlayCarWeatherVisuals ? window.createPlayCarWeatherVisuals : null);
+const weatherVisuals = (() => {
+  if (!createWeatherVisuals) return null;
+  try {
+    return createWeatherVisuals(THREE, scene, {
+      camera, renderer, sun, hemi: hemiLight,
+      materials: [mats.pad, mats.runway, mats.dry, mats.wet, mats.ice, mats.line]
+    });
+  } catch (error) {
+    console.warn('PlayCar weather visuals unavailable:', error && error.message);
+    return null;
+  }
+})();
+const WEATHER_ORDER = ['clear', 'overcast', 'rain', 'storm', 'fog', 'snow', 'night'];
+let weatherIndex = 0;
+let weatherApplyTimer = 0;
+
+function setWeatherPreset(name, options = {}) {
+  if (!weatherSystem) return null;
+  let state;
+  try { state = weatherSystem.setPreset(name, options); }
+  catch (error) { return null; }
+  weatherIndex = Math.max(0, WEATHER_ORDER.indexOf(name));
+  weatherSystem.applyTo(vehicle);
+  if (!options.silent && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    try {
+      window.dispatchEvent(new CustomEvent('playcar:weather', { detail: weatherSystem.getState() }));
+    } catch (_) { /* CustomEvent may be unavailable in headless harnesses */ }
+  }
+  return state;
+}
+function cycleWeather(delta) {
+  const next = (weatherIndex + delta + WEATHER_ORDER.length) % WEATHER_ORDER.length;
+  return setWeatherPreset(WEATHER_ORDER[next]);
+}
+if (weatherSystem) weatherSystem.applyTo(vehicle);
+
 /* HUD overlay */
 const overlay = document.createElement('div');
 overlay.style.cssText = 'position:absolute;left:10px;bottom:10px;padding:8px 11px;border-radius:10px;background:rgba(6,14,24,.72);color:#e8f5ff;font:12px/1.55 ui-monospace,monospace;pointer-events:none;backdrop-filter:blur(4px)';
-overlay.innerHTML = '<b id="hud-speed">0 km/h</b> · <span id="hud-gear">N</span><br><span id="hud-surface">路面 μ —</span> · <span id="hud-contacts">0 轮接触</span>';
+overlay.innerHTML = '<b id="hud-speed">0 km/h</b> · <span id="hud-gear">N</span><br><span id="hud-surface">路面 μ —</span> · <span id="hud-contacts">0 轮接触</span><br><span id="hud-weather">天气 晴朗 · 0% 湿</span>';
 host.appendChild(overlay);
 
 /* ------------------------------------------------------------------ */
@@ -388,6 +434,8 @@ window.addEventListener('keydown', event => {
   if (key === 'arrowright' || key === 'd') input.right = true;
   if (event.key === ' ') input.handbrake = true;
   if (key === 'r') resetVehicle();
+  if (event.key === '[') cycleWeather(-1);
+  if (event.key === ']') cycleWeather(1);
 }, { passive: false });
 window.addEventListener('keyup', event => {
   const key = event.key.toLowerCase();
@@ -421,6 +469,11 @@ const runtime = {
   setWeather(value = {}) { return vehicle.setWeather(value); },
   setConfig(patch = {}) { return vehicle.setConfig(patch); },
   setRigidConfig(patch = {}) { return vehicle.setRigidConfig(patch); },
+  setWeatherPreset(name, options) { return setWeatherPreset(name, options); },
+  cycleWeather(delta = 1) { return cycleWeather(delta); },
+  weather() { return weatherSystem ? weatherSystem.getState() : null; },
+  weatherVisuals,
+  listWeatherPresets() { return weatherSystem ? weatherSystem.listPresets() : []; },
   reset() { resetVehicle(); return vehicle.getSnapshot(); },
   snapshot() { return vehicle.getSnapshot(); },
   surfaceFriction() {
@@ -442,6 +495,7 @@ const cameraPosition = new THREE.Vector3(0, 9, 105);
 const tmpForward = new THREE.Vector3();
 const hudSurface = document.getElementById('hud-surface');
 const hudContacts = document.getElementById('hud-contacts');
+const hudWeather = document.getElementById('hud-weather');
 
 function resize() {
   const w = Math.max(1, host.clientWidth);
@@ -465,6 +519,16 @@ function render() {
     steer: (input.right ? 1 : 0) - (input.left ? 1 : 0),
     handbrake: level(input.handbrake)
   });
+
+  if (weatherSystem) {
+    const weather = weatherSystem.update(dt);
+    if (weatherVisuals) weatherVisuals.update(dt, weather);
+    weatherApplyTimer += dt;
+    if (weatherApplyTimer >= 0.1) {
+      weatherApplyTimer = 0;
+      weatherSystem.applyTo(vehicle);
+    }
+  }
 
   const pose = rigid.interpolatedState();
   const wheelState = vehicle.getWheelState();
@@ -518,6 +582,10 @@ function render() {
       hudSurface.textContent = mu === null ? '路面 μ —' : `路面 μ ${mu.toFixed(2)}`;
     }
     if (hudContacts) hudContacts.textContent = `${t.wheelContacts} 轮接触 · ${t.chassisContacts} 底盘接触`;
+    if (hudWeather && weatherSystem) {
+      const weather = weatherSystem.getState();
+      hudWeather.textContent = `天气 ${weather.label} · ${Math.round(weather.wetness * 100)}% 湿 · ${Math.round(weather.temperature)}°C · 风 ${weather.windSpeed.toFixed(0)} m/s`;
+    }
     if (status && performance.now() - lastStatus > 1200) {
       lastStatus = performance.now();
       status.textContent = `测试场运行中 · ${rigid.world.stepCount} 子步 · ${(rigid.lastContacts || []).length} 轮接触`;

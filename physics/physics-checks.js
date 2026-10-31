@@ -1,4 +1,4 @@
-/* PlayCar Physics Checks 1.0.0
+/* PlayCar Physics Checks 1.1.0
  *
  * Self-contained, deterministic validation scenarios for the 3.0 physics stack.
  * The browser test scene (test-scene.html) and the Node test suite run exactly
@@ -214,6 +214,34 @@
         assert(wet.distance > dry.distance * 1.25, `wet ${wet.distance.toFixed(1)} vs dry ${dry.distance.toFixed(1)}`);
         assert(ice.distance > wet.distance * 1.2, `ice ${ice.distance.toFixed(1)} vs wet ${wet.distance.toFixed(1)}`);
         return { dry: round(dry.distance, 1), wet: round(wet.distance, 1), ice: round(ice.distance, 1) };
+      }
+    },
+    {
+      id: 'weather-wind',
+      name: '天气：侧风与积雪',
+      note: '15 m/s 侧风产生下风侧推力与风向标偏航；积雪把附着系数降到 0.68',
+      run() {
+        function drive(wind) {
+          const vehicle = makeVehicle(flatSurface());
+          if (wind) vehicle.setWeather({ wind: { x: wind, z: 0 }, wetness: 0 });
+          setSpeed(vehicle, 20);
+          for (let i = 0; i < 240; i++) vehicle.advance(1 / 120, { throttle: 0.2, steer: 0 });
+          const t = vehicle.rigidBody.telemetry;
+          return { x: rigidPosition(vehicle).x, sideForce: t.sideForce || 0 };
+        }
+        const calm = drive(0);
+        const windy = drive(15);
+        assert(Math.abs(calm.sideForce) < 1, `calm side force ${calm.sideForce}`);
+        assert(windy.sideForce > 150, `crosswind side force ${windy.sideForce.toFixed(0)} N`);
+        assert(Math.abs(windy.x - calm.x) > 0.05, `lateral response ${(windy.x - calm.x).toFixed(3)} m`);
+        const dry = makeVehicle(flatSurface());
+        dry.setWeather({ wetness: 0, snow: 0 });
+        const snowy = makeVehicle(flatSurface());
+        snowy.setWeather({ wetness: 0, snow: 1 });
+        const muDry = dry.rigidBody.c.tire.mu;
+        const muSnow = snowy.rigidBody.c.tire.mu;
+        assert(muSnow < muDry * 0.75, `snow μ ${muSnow.toFixed(2)} vs dry ${muDry.toFixed(2)}`);
+        return { sideForce: round(windy.sideForce, 0), drift: round(windy.x - calm.x, 3), muDry: round(muDry, 3), muSnow: round(muSnow, 3) };
       }
     },
     {
