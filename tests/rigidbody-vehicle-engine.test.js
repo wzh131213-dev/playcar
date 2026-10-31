@@ -140,29 +140,31 @@ test('lateral load transfer is zero without cornering demand',()=>{
 
 
 function tiltAngle(q,axis){
- const up=V.rotate?V.rotate(q,{x:0,y:1,z:0}):require('../physics/rigidbody-vehicle-engine.js').Quaternion.rotate(q,{x:0,y:1,z:0});
+ const up=require('../physics/rigidbody-vehicle-engine.js').Quaternion.rotate(q,{x:0,y:1,z:0});
  return axis==='roll'?Math.atan2(-up.x,up.y):Math.atan2(up.z,up.y);
 }
-test('body roll spring restores chassis toward upright and damps roll rate',()=>{
+test('body roll spring restores a tilted chassis toward upright',()=>{
  const {Quaternion:Q}=require('../physics/rigidbody-vehicle-engine.js');
- const e=make();
- e.state.orientation=Q.axis({x:0,y:0,z:1},.12);
- e.state.angularVelocity={x:0,y:0,z:.8};
+ const e=make();e.state.orientation=Q.axis({x:0,y:0,z:1},.12);
  const before=Math.abs(tiltAngle(e.state.orientation,'roll'));
  for(let i=0;i<30;i++)e.advance(1/120,{});
- const after=Math.abs(tiltAngle(e.state.orientation,'roll'));
- assert.ok(after<before,'roll restoring torque must reduce chassis roll angle');
- assert.ok(Math.abs(e.state.angularVelocity.z)<.8,'roll damping must reduce angular velocity');
+ assert.ok(Math.abs(tiltAngle(e.state.orientation,'roll'))<before,'roll restoring torque must reduce chassis roll angle');
 });
-test('body pitch spring restores chassis toward level and damps pitch rate',()=>{
+test('body pitch spring restores a pitched chassis toward level',()=>{
  const {Quaternion:Q}=require('../physics/rigidbody-vehicle-engine.js');
- const e=make();
- e.state.orientation=Q.axis({x:1,y:0,z:0},.12);
- e.state.angularVelocity={x:.8,y:0,z:0};
+ const e=make();e.state.orientation=Q.axis({x:1,y:0,z:0},.12);
  const before=Math.abs(tiltAngle(e.state.orientation,'pitch'));
  for(let i=0;i<30;i++)e.advance(1/120,{});
- const after=Math.abs(tiltAngle(e.state.orientation,'pitch'));
- assert.ok(after<before,'pitch restoring torque must reduce chassis pitch angle');
+ assert.ok(Math.abs(tiltAngle(e.state.orientation,'pitch'))<before,'pitch restoring torque must reduce chassis pitch angle');
+});
+test('body roll damping dissipates roll angular velocity',()=>{
+ const e=make();e.state.angularVelocity={x:0,y:0,z:.8};
+ for(let i=0;i<30;i++)e.advance(1/120,{});
+ assert.ok(Math.abs(e.state.angularVelocity.z)<.8,'roll damping must reduce angular velocity');
+});
+test('body pitch damping dissipates pitch angular velocity',()=>{
+ const e=make();e.state.angularVelocity={x:.8,y:0,z:0};
+ for(let i=0;i<30;i++)e.advance(1/120,{});
  assert.ok(Math.abs(e.state.angularVelocity.x)<.8,'pitch damping must reduce angular velocity');
 });
 test('body roll and pitch stabilization can be independently tuned or disabled',()=>{
