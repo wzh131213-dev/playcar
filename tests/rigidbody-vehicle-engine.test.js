@@ -261,7 +261,7 @@ test('3D steering axis uses caster and kingpin inclination to change wheel headi
  const a=base._wheelKinematics(0,0,{x:0,y:1,z:0},{steer:.6});
  const b=angled._wheelKinematics(0,0,{x:0,y:1,z:0},{steer:.6});
  assert.ok(Math.abs(a.forward.y)<1e-8);
- assert.ok(Math.abs(b.forward.y)>1e-4,'steering-axis inclination should create jacking/camber-related heading change');
+ assert.ok(Math.abs(b.camberDeg-a.camberDeg)>1e-4,'steering-axis inclination should create steering camber');
  assert.ok(Math.abs(a.forward.x-b.forward.x)>1e-4||Math.abs(a.forward.z-b.forward.z)>1e-4);
  assert.ok(Number.isFinite(b.jackingHeight)&&b.jackingHeight>0);
 });
