@@ -713,6 +713,10 @@ const DEFAULTS={
  inertia:{x:520,y:1450,z:1650},com:{x:0,y:.52,z:0},
  wheelbase:2.65,track:1.56,wheelRadius:.32,wheelMass:18,
  suspension:{rest:.32,min:.08,max:.48,stiffness:32000,damping:4200,bump:90000,bumpStopRange:.12},
+ suspensionGeometry:{
+  front:{camberStatic:-.5,camberGain:-22,toeStatic:0,toeGain:.35,rollCenterHeight:.12,rollCenterTravelGain:.10,rollCenterLateralGain:.08,rollCamberGain:.28},
+  rear:{camberStatic:-1.0,camberGain:-15,toeStatic:.08,toeGain:-.22,rollCenterHeight:.17,rollCenterTravelGain:.07,rollCenterLateralGain:.06,rollCamberGain:.18}
+ },
  tire:{mu:1.08,corneringStiffness:78000,longitudinalStiffness:95000,relaxation:.04,relaxationAngle:.08,loadSensitivity:.12,referenceLoad:3000,aligningTrail:.08,pacejka:{enabled:false,B:0,C:1.3,E:.97,peak:1},frictionEllipse:{longitudinal:1,lateral:1}},
  engine:{peakTorque:280,idleRpm:900,redline:6500,finalDrive:3.9,gears:[3.2,2.1,1.5,1.18,.94,.78],efficiency:.88},
  antiRoll:{front:8500,rear:6500},body:{rollStiffness:9000,rollDamping:2200,pitchStiffness:14000,pitchDamping:2800},differential:{type:'open',limitedSlip:2.2},aids:{abs:true,tcs:true,absSlip:.18,tcsSlip:.22},steering:{maxAngle:.48,highSpeedScale:.42},
@@ -737,7 +741,7 @@ function calculateTireForces(FxRaw,slipAngle,normalLoad,frictionCoefficient,tire
 }
 class RigidBodyVehicle{
  constructor(options={}){
-  this.c=Object.assign({},clone(DEFAULTS),options.config||{});this.c.inertia=Object.assign({},DEFAULTS.inertia,options.config?.inertia||{});this.c.com=Object.assign({},DEFAULTS.com,options.config?.com||{});this.c.suspension=Object.assign({},DEFAULTS.suspension,options.config?.suspension||{});this.c.tire=Object.assign({},DEFAULTS.tire,options.config?.tire||{});this.c.tire.pacejka=Object.assign({},DEFAULTS.tire.pacejka,options.config?.tire?.pacejka||{});this.c.tire.frictionEllipse=Object.assign({},DEFAULTS.tire.frictionEllipse,options.config?.tire?.frictionEllipse||{});this.c.engine=Object.assign({},DEFAULTS.engine,options.config?.engine||{});this.c.antiRoll=Object.assign({},DEFAULTS.antiRoll,options.config?.antiRoll||{});this.c.body=Object.assign({},DEFAULTS.body,options.config?.body||{});this.c.differential=Object.assign({},DEFAULTS.differential,options.config?.differential||{});this.c.aids=Object.assign({},DEFAULTS.aids,options.config?.aids||{});this.c.steering=Object.assign({},DEFAULTS.steering,options.config?.steering||{});
+  this.c=Object.assign({},clone(DEFAULTS),options.config||{});this.c.inertia=Object.assign({},DEFAULTS.inertia,options.config?.inertia||{});this.c.com=Object.assign({},DEFAULTS.com,options.config?.com||{});this.c.suspension=Object.assign({},DEFAULTS.suspension,options.config?.suspension||{});this.c.suspensionGeometry={front:Object.assign({},DEFAULTS.suspensionGeometry.front,options.config?.suspensionGeometry?.front||{}),rear:Object.assign({},DEFAULTS.suspensionGeometry.rear,options.config?.suspensionGeometry?.rear||{})};this.c.tire=Object.assign({},DEFAULTS.tire,options.config?.tire||{});this.c.tire.pacejka=Object.assign({},DEFAULTS.tire.pacejka,options.config?.tire?.pacejka||{});this.c.tire.frictionEllipse=Object.assign({},DEFAULTS.tire.frictionEllipse,options.config?.tire?.frictionEllipse||{});this.c.engine=Object.assign({},DEFAULTS.engine,options.config?.engine||{});this.c.antiRoll=Object.assign({},DEFAULTS.antiRoll,options.config?.antiRoll||{});this.c.body=Object.assign({},DEFAULTS.body,options.config?.body||{});this.c.differential=Object.assign({},DEFAULTS.differential,options.config?.differential||{});this.c.aids=Object.assign({},DEFAULTS.aids,options.config?.aids||{});this.c.steering=Object.assign({},DEFAULTS.steering,options.config?.steering||{});
   this.mesh=options.surfaceMesh||null;this.colliders=options.colliderMeshes||[];this.groundY=options.groundPlaneY??null;
   this.accumulator=0;this.gear=1;this.engineRpm=this.c.engine.idleRpm;this.tick=0;
   this.state={position:{...(options.position||{x:0,y:.65,z:0})},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};
@@ -749,7 +753,25 @@ class RigidBodyVehicle{
  _pointVelocity(r){return V.add(this.state.velocity,V.cross(this.state.angularVelocity,r));}
  _applyForce(F,r,dt){const s=this.state;s.velocity=V.add(s.velocity,V.mul(F,dt/this.c.mass));s.angularVelocity=V.add(s.angularVelocity,V.mul(this._invInertiaWorld(V.cross(r,F)),dt));}
  _applyTorque(torque,dt){this.state.angularVelocity=V.add(this.state.angularVelocity,V.mul(this._invInertiaWorld(torque),dt));}
- _contacts(){
+ _wheelKinematics(index,compression,normal,input={}) {
+  const c=this.c,s=this.state,front=index<2,side=(index===0||index===2)?-1:1;
+  const g=front?c.suspensionGeometry.front:c.suspensionGeometry.rear;
+  const tilt=this._bodyTilt(),travel=V.clamp(compression/Math.max(.001,c.suspension.max-c.suspension.min),-1,1);
+  const camberDeg=g.camberStatic+g.camberGain*compression+g.rollCamberGain*tilt.roll*180/Math.PI;
+  const toeDeg=g.toeStatic+g.toeGain*compression;
+  const speed=V.len(s.velocity),steer=front?V.clamp(input.steer||0,-1,1)*c.steering.maxAngle*(1-(1-c.steering.highSpeedScale)*V.clamp(speed/55,0,1)):0;
+  const n=V.norm(normal),bodyForward=Q.rotate(s.orientation,{x:0,y:0,z:-1});
+  let forward=V.norm(V.sub(bodyForward,V.mul(n,V.dot(bodyForward,n))));
+  if(V.len(forward)<1e-8)forward=V.norm(V.cross({x:1,y:0,z:0},n));
+  const angle=(steer+toeDeg*Math.PI/180);
+  forward=V.norm(V.add(V.mul(forward,Math.cos(angle)),V.mul(V.cross(n,forward),Math.sin(angle))));
+  const right=V.norm(V.cross(forward,n));
+  const camberedNormal=Q.rotate(Q.axis(forward,camberDeg*Math.PI/180),n);
+  const camberedRight=V.norm(V.cross(forward,camberedNormal));
+  const rollCenterHeight=Math.max(0,g.rollCenterHeight+g.rollCenterTravelGain*compression+g.rollCenterLateralGain*side*compression);
+  return {camber:camberDeg*Math.PI/180,camberDeg,toe:toeDeg*Math.PI/180,toeDeg,steer,forward,right,camberedNormal,camberedRight,rollCenterHeight,travel,side,axle:front?'front':'rear'};
+ }
+ _contacts(input={}){
   const c=this.c,s=this.state,out=[],q=s.orientation,half=c.wheelbase/2,track=c.track/2;
   const mounts=[[-track,-half],[track,-half],[-track,half],[track,half]];
   for(let i=0;i<4;i++){
@@ -762,7 +784,8 @@ class RigidBodyVehicle{
    let n=V.norm(hit.normal||{x:0,y:1,z:0});if(V.dot(n,{x:0,y:1,z:0})<0)n=V.mul(n,-1);
    const rawLength=hit.distance-c.wheelRadius,length=V.clamp(rawLength, c.suspension.min,c.suspension.max),compression=c.suspension.rest-length;
    const point=hit.point||V.sub(origin,V.mul(n,hit.distance)),arm=V.sub(point,s.position),pv=this._pointVelocity(arm),vn=V.dot(pv,n);
-   out.push({index:i,point,normal:n,arm,compression,length,rawLength,normalVelocity:vn,velocity:pv,local,friction:Number.isFinite(hit.friction)?Math.max(0,hit.friction):1});
+   const geometry=this._wheelKinematics(i,compression,n,input),wheelCenter=V.add(point,V.mul(n,c.wheelRadius));
+   out.push({index:i,point,normal:n,arm,compression,length,rawLength,normalVelocity:vn,velocity:pv,local,wheelCenter,geometry,tireForward:geometry.forward,tireRight:geometry.right,friction:Number.isFinite(hit.friction)?Math.max(0,hit.friction):1});
   }
   return out;
  }
@@ -778,7 +801,7 @@ class RigidBodyVehicle{
  }
  _fixed(dt,input){
   const c=this.c,s=this.state;this.previous=clone(s);this.aidState={abs:false,tcs:false};
-  const contacts=this._contacts();this.lastContacts=contacts;
+  const contacts=this._contacts(input);this.lastContacts=contacts;
   const normalLoad=[0,0,0,0],forces=[],suspensionTelemetry=Array.from({length:4},(_,wheel)=>({wheel,compression:0,rawLength:null,bumpStopCompression:0,bumpStopForce:0,normalLoad:0}));
   // 1-2: wheel contact and spring/damper/bump-stop forces
   for(const h of contacts){
@@ -825,7 +848,12 @@ class RigidBodyVehicle{
   const steeringForTransfer=steer*c.steering.maxAngle*(1-(1-c.steering.highSpeedScale)*V.clamp(speed/55,0,1));
   const requestedLateralAcceleration=longitudinalSpeed*Math.abs(longitudinalSpeed)*Math.tan(steeringForTransfer)/Math.max(.1,c.wheelbase);
   // Positive lateral acceleration (positive steering while moving forward) loads the left/outside wheels.
-  const requestedLateralTransfer=c.mass*requestedLateralAcceleration*Math.max(0,c.com.y)/Math.max(.1,c.track);
+  const frontGeometry=contacts.filter(h=>h.index<2),rearGeometry=contacts.filter(h=>h.index>=2);
+  const axleRollCenter=axle=>axle.length?axle.reduce((sum,h)=>sum+h.geometry.rollCenterHeight,0)/axle.length:0;
+  const frontRollCenterHeight=axleRollCenter(frontGeometry),rearRollCenterHeight=axleRollCenter(rearGeometry);
+  const effectiveRollCenterHeight=(frontRollCenterHeight+rearRollCenterHeight)*.5;
+  const lateralMomentArm=Math.max(.05,c.com.y-effectiveRollCenterHeight);
+  const requestedLateralTransfer=c.mass*requestedLateralAcceleration*lateralMomentArm/Math.max(.1,c.track);
   const leftContacts=contacts.filter(h=>h.index===0||h.index===2),rightContacts=contacts.filter(h=>h.index===1||h.index===3);
   const leftAvailable=leftContacts.reduce((sum,h)=>sum+normalLoad[h.index],0);
   const rightAvailable=rightContacts.reduce((sum,h)=>sum+normalLoad[h.index],0);
@@ -850,11 +878,11 @@ class RigidBodyVehicle{
   const steerAngle=steer*c.steering.maxAngle*(1-(1-c.steering.highSpeedScale)*V.clamp(speed/55,0,1));
   for(const h of contacts){
    const i=h.index,rear=i>=2,front=!rear;
-   let wheelForward=forward,wheelRight=right;
-   if(front){wheelForward=V.norm(V.add(V.mul(forward,Math.cos(steerAngle)),V.mul(right,Math.sin(steerAngle))));wheelRight=V.norm(V.cross(wheelForward,h.normal));}
+   let wheelForward=h.tireForward||forward,wheelRight=h.tireRight||right;
    const vLong=V.dot(h.velocity,wheelForward),vLat=V.dot(h.velocity,wheelRight),omega=s.wheelOmega[i];
    const rawSlip=(omega*c.wheelRadius-vLong)/Math.max(2,Math.abs(vLong)),relax=V.clamp(dt/Math.max(.001,c.tire.relaxation),0,1);this._slipState[i]+=(rawSlip-this._slipState[i])*relax;
    let slipRatio=this._slipState[i],rawSlipAngle=Math.atan2(vLat,Math.max(1,Math.abs(vLong))),angleRelax=V.clamp(dt/Math.max(.001,c.tire.relaxationAngle||c.tire.relaxation),0,1);this._slipAngleState[i]+=(rawSlipAngle-this._slipAngleState[i])*angleRelax;let slipAngle=this._slipAngleState[i];
+   slipAngle+=h.geometry.camber*(c.tire.camberThrustGain??.08);
    let wheelDrive=wheelDriveTorque[i];
    if(c.aids.tcs&&wheelDrive>0&&slipRatio>c.aids.tcsSlip){wheelDrive*=V.clamp(c.aids.tcsSlip/Math.max(.001,slipRatio),.15,1);this.aidState.tcs=true;}
    const FxRaw=c.tire.longitudinalStiffness*slipRatio+wheelDrive/c.wheelRadius;
@@ -875,9 +903,9 @@ class RigidBodyVehicle{
   const dq=Q.mul(omegaQ,s.orientation);s.orientation=Q.norm({x:s.orientation.x+.5*dq.x*dt,y:s.orientation.y+.5*dq.y*dt,z:s.orientation.z+.5*dq.z*dt,w:s.orientation.w+.5*dq.w*dt});
   // 7: positional contact recovery, normal impulse and approximate swept-body CCD
   this._solveCollisions(dt);
-  const after=this._contacts();s.grounded=after.length>=2;
+  const after=this._contacts(input);s.grounded=after.length>=2;
   this.tick++;
-  this.telemetry={tick:this.tick,contacts:after.length,normalLoads:normalLoad,forces,suspension:suspensionTelemetry,bodyTilt:this._bodyTilt(),bodyStabilization:{...c.body},gear:this.gear,rpm:this.engineRpm,speed:V.len(s.velocity),downforce,absActive:this.aidState.abs,tcsActive:this.aidState.tcs,antiRoll:{front:c.antiRoll.front,rear:c.antiRoll.rear},loadTransfer:loadTransferTelemetry,differential:diffType,driveLayout:driveType,drivenWheels:[...driven]};
+  this.telemetry={tick:this.tick,contacts:after.length,normalLoads:normalLoad,forces,suspension:suspensionTelemetry,wheelGeometry:after.map(h=>({wheel:h.index,axle:h.geometry.axle,camber:h.geometry.camber,camberDeg:h.geometry.camberDeg,toe:h.geometry.toe,toeDeg:h.geometry.toeDeg,rollCenterHeight:h.geometry.rollCenterHeight,travel:h.geometry.travel,wheelCenter:{...h.wheelCenter},contactNormal:{...h.normal},tireForward:{...h.tireForward},tireRight:{...h.tireRight}})),rollCenter:{front:frontRollCenterHeight,rear:rearRollCenterHeight,average:effectiveRollCenterHeight,lateralMomentArm},bodyTilt:this._bodyTilt(),bodyStabilization:{...c.body},gear:this.gear,rpm:this.engineRpm,speed:V.len(s.velocity),downforce,absActive:this.aidState.abs,tcsActive:this.aidState.tcs,antiRoll:{front:c.antiRoll.front,rear:c.antiRoll.rear},loadTransfer:loadTransferTelemetry,differential:diffType,driveLayout:driveType,drivenWheels:[...driven]};
  }
  _solveCollisions(dt){
   const s=this.state,c=this.c;
@@ -912,7 +940,7 @@ class RigidBodyVehicle{
  }
  interpolatedState(){const a=this.previous,b=this.state,t=V.clamp(this.accumulator/this.c.fixedDt,0,1);return{position:V.add(a.position,V.mul(V.sub(b.position,a.position),t)),velocity:V.add(a.velocity,V.mul(V.sub(b.velocity,a.velocity),t)),orientation:Q.slerp(a.orientation,b.orientation,t),grounded:b.grounded};}
 }
-root.PlayCarRigidBody={RigidBodyVehicle,Vector3:V,Quaternion:Q,calculateTireForces,defaults:clone(DEFAULTS),version:'2.5.0'};
+root.PlayCarRigidBody={RigidBodyVehicle,Vector3:V,Quaternion:Q,calculateTireForces,defaults:clone(DEFAULTS),version:'2.6.0'};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.PlayCarRigidBody;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
