@@ -764,7 +764,7 @@ class RigidBodyVehicle{
   let forward=V.norm(V.sub(bodyForward,V.mul(n,V.dot(bodyForward,n))));
   if(V.len(forward)<1e-8)forward=V.norm(V.cross({x:1,y:0,z:0},n));
   const angle=(steer+toeDeg*Math.PI/180);
-  forward=V.norm(V.add(V.mul(forward,Math.cos(angle)),V.mul(V.cross(n,forward),Math.sin(angle))));
+  forward=V.norm(V.add(V.mul(forward,Math.cos(angle)),V.mul(V.cross(forward,n),Math.sin(angle))));
   const right=V.norm(V.cross(forward,n));
   const camberedNormal=Q.rotate(Q.axis(forward,camberDeg*Math.PI/180),n);
   const camberedRight=V.norm(V.cross(forward,camberedNormal));
