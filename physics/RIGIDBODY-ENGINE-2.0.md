@@ -1,4 +1,4 @@
-# PlayCar Rigid-Body Vehicle Physics 2.4.0
+# PlayCar Rigid-Body Vehicle Physics 2.5.0
 
 This package adds an independent rigid-body vehicle solver to the PlayCar physics branch. It is a new engine module; it does not silently replace the existing 1.8.0 simcade engine or change the current 3D lab's runtime selection.
 
@@ -63,7 +63,7 @@ Suspension contacts retain the unclamped wheel travel length so the end-stop log
 where `x = max(0, minTravel - rawLength)`. Configure `suspension.bump` (N/m) and `suspension.bumpStopRange` (m); setting `bump: 0` disables the bump stop. Per-wheel telemetry is available in `telemetry.suspension`, including raw length, compression, bump-stop compression, bump-stop force, and resulting normal load.
 
 
-## Longitudinal dynamic load transfer 2.4.0
+## Longitudinal dynamic load transfer 2.5.0
 
 The solver estimates longitudinal acceleration demand from engine wheel torque and service-brake torque, bounds it by the configured tire friction limit, and transfers normal load between the front and rear axles using the configured centre-of-mass height and wheelbase:
 
@@ -72,10 +72,43 @@ The solver estimates longitudinal acceleration demand from engine wheel torque a
 Positive acceleration transfers load rearward; braking transfers load forward. The transfer is applied to the wheel normal loads before tire-force calculation, is limited by the available axle support load to prevent negative wheel loads, and preserves the sum of the four wheel normal loads. Read the signed front-axle gain in `telemetry.loadTransfer.longitudinal` (positive means forward load transfer during braking; negative means rearward transfer during acceleration). This is a force-demand estimate, not a full suspension-geometry or measured-vehicle model.
 
 
-## Lateral cornering load transfer 2.4.0
+## Lateral cornering load transfer 2.5.0
 
 The solver estimates lateral acceleration demand from forward speed and front-wheel steering angle using a bicycle-model approximation, then redistributes normal load across the left and right wheel pairs:
 
 `ΔF_lat = m · a_y · hCG / track`
 
 Positive steering while moving forward transfers load to the left/outside wheels; reversing steering reverses the transfer. The signed amount is exposed as `telemetry.loadTransfer.lateral` (positive means left-side gain). The redistribution is applied to wheel support loads before tire-force evaluation, bounded by the available side loads, and conserves total normal load. This simplified model does not yet include a measured roll-centre/roll-stiffness suspension geometry model.
+
+
+## Chassis roll and pitch stabilization 2.5.0
+
+The rigid body now applies configurable spring-damper torques around the chassis' local roll and pitch axes. The chassis tilt is measured from its rotated up vector; angular velocity is transformed into the body frame before damping, and the resulting local torque is transformed back to world space before entering the same angular-velocity integration used by suspension and tire contact torques.
+
+Default tuning:
+
+| Parameter | Default | Unit |
+|---|---:|---|
+| `body.rollStiffness` | 9000 | N·m/rad |
+| `body.rollDamping` | 2200 | N·m·s/rad |
+| `body.pitchStiffness` | 14000 | N·m/rad |
+| `body.pitchDamping` | 2800 | N·m·s/rad |
+
+Example:
+
+```js
+const vehicle = new RigidBodyVehicle({
+  config: {
+    body: {
+      rollStiffness: 9000,
+      rollDamping: 2200,
+      pitchStiffness: 14000,
+      pitchDamping: 2800
+    }
+  }
+});
+```
+
+Set an individual stiffness or damping value to `0` to disable that contribution. Telemetry exposes `bodyTilt` (roll, pitch and body-frame roll/pitch rates) and `bodyStabilization` (active coefficients).
+
+These torques provide chassis attitude spring-damper behavior; they do not replace wheel-contact forces, suspension anti-roll bars, or the separate axle/side normal-load transfer estimates. The current model is a simplified body attitude controller, not a full suspension roll-centre, pitch-centre, or measured chassis compliance model. The defaults require calibration against the actual vehicle and track.
