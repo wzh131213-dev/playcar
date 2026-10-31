@@ -211,7 +211,7 @@ test('root HTML loads the current 3D physics control center bundle',()=>{
   const path=require('node:path');
   const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
   assert.ok(html.includes('<title>PlayCar · Physics Control Center</title>'));
-  assert.ok(html.includes('./physics/playcar-physics-all-in-one.js?v=2.0.0'));
+  assert.ok(html.includes('./physics/playcar-physics-all-in-one.js?v=3.0.0'));
   assert.match(html,/id="scene3d"/);
   assert.doesNotMatch(html,/POLY.?RUSH|TIME ATTACK/i);
 });
@@ -255,7 +255,7 @@ test('game HTML loads the current all-in-one physics runtime bundle',()=>{
   const path=require('node:path');
   const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
   const bundle=fs.readFileSync(path.join(__dirname,'../physics/playcar-physics-all-in-one.js'),'utf8');
-  assert.ok(html.includes('./physics/playcar-physics-all-in-one.js?v=2.0.0'),
+  assert.ok(html.includes('./physics/playcar-physics-all-in-one.js?v=3.0.0'),
     'HTML must load the all-in-one runtime bundle with its current cache version');
   assert.ok(bundle.includes('PlayCarRuntime')&&bundle.includes('PlayCarPhysicsEngine'),
     'runtime bundle must expose the engine and runtime bridge');

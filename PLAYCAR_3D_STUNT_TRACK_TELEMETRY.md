@@ -1,25 +1,59 @@
-# PlayCar 3D Stunt Track and Telemetry
+# PlayCar 3D Lab — Track and Telemetry
 
-## Track changes
+The 3.0 lab (`index.html`) runs the generated bundle and a pinned Three.js
+(`vendor/three.module.min.js`, with a CDN fallback). The physics is the rigid-body
+stack described in [`physics/RIGIDBODY-ENGINE-3.0.md`](./physics/RIGIDBODY-ENGINE-3.0.md).
 
-- The main road now uses a three-dimensional road frame. The cross-section is generated from a side vector and a local up vector instead of assuming every road segment is horizontal.
-- The main route includes a shaped launch ramp with a rising face, short crest, and descending landing section.
-- The road frame applies curvature-based banking on turns.
-- A 144-segment vertical loop replaces a section of the original route. Its centerline is a vertical circle with a 13-world-unit radius and a cubic exit connector back to the original route.
-- Checkpoint gates were moved away from the loop so the loop does not become a checkpoint plane.
+## Track
 
-## Driving telemetry
+- Closed Catmull-Rom circuit with a start straight through `(0, 0.08, 34)`.
+- Curvature-based banking, low-pass filtered over nine segments and clamped to ±0.16
+  rad so the closure seam and the tightest corner do not become 20° walls.
+- Continuous low barriers on both sides, implemented as vertical triangle colliders
+  for the chassis. They are not part of the wheel support surface.
+- A wet section (about 55–64 % of the loop) with per-triangle friction 0.55; dry
+  road uses 1.0. Shared by the tire support and the chassis contact solver.
+- A tabletop ramp on the start straight: 7 m rise to 1.85 m, 5 m crest, 9 m descent.
+  The deck is a wheel surface; the chassis does not collide with the thin deck,
+  which prevents a long rigid box from high-centring on the crest.
+- Cones and crates are dynamic props in the vehicle's own rigid world, so they can be
+  knocked into each other and the car.
 
-Use the in-game **导出驾驶数据** button after driving. It downloads `playcar-driving-telemetry.csv` with one sample approximately every 0.1 seconds. Columns include elapsed time, physics tick, world position, total and vertical speed, input buttons, grounded state, grip state, collision state, and cumulative collision count. Up to 12,000 samples are kept per run.
+## Telemetry and recording
 
-The data is collected from the actual browser session; it is not fabricated test telemetry. Reset starts a new sample set. Export after driving the ramp, loop, and several high-speed corners, and use the CSV to tune the engine in a subsequent iteration.
+The right-hand panel polls `PlayCarRuntime.snapshot()` every 100 ms and streams:
 
-## Parameter baseline and tuning caveat
+- state (legacy origin, velocity, orientation, angular velocity, grip/collision state);
+- telemetry (speed components, slip angle, tire loads/slip/utilisation, suspension
+  travel, RPM/gear, ABS/TCS/ESC, differential, driven wheels, load transfer);
+- debug (physics milliseconds, substeps, contact count, collision events);
+- config, weather and input.
 
-The existing engine defaults remain the initial baseline: fixed 120 Hz, gravity 24, tire grip 1.65, handbrake grip 0.38, max steering angle 0.48 rad, high-speed steering scale 0.48, suspension rest length 0.09, and suspension reach 0.42 world units.
+`记录开始/暂停/清空` records a full snapshot every ~100 ms (up to 12,000 samples).
+`导出 JSON` writes the snapshot plus the recording; `导出 CSV` flattens the recorded
+objects into a header row plus one row per sample; `导出参数配置` writes the live
+config and rigid config. All exports are generated from the running session, not
+fabricated data.
 
-These are code defaults, not values fitted to a real driver's recorded session. No actual browser telemetry was available at implementation time, and this environment cannot simulate a real iPad Safari driving session. It would be misleading to claim the suspension, grip, or high-speed steering has already been fitted to real driving data. Collect a CSV from a real run first, then compare grounded time, vertical velocity/landing events, speed versus steering input, and collision counts before changing these values.
+## Parameter panel
+
+- `全部物理参数` edits the legacy 1.8 config; each change is validated by
+  `setConfig`, then remapped onto the rigid model (`tireGrip` → μ, accelerations →
+  torque, suspension lengths, body half extents, aero, …).
+- `高级车辆动力学` drives the 3.0 model directly: RWD/FWD/AWD, open/LSD/locked
+  differential and TBR, suspension stiffness and rebound damping, ESC, TCS.
+- `运行自检` verifies the config is finite, the snapshot has the expected sections,
+  invalid values are rejected, the rigid body and world are connected, and the 3.0
+  tuning API works.
 
 ## Validation scope
 
-The automated CI checks JavaScript syntax and engine regression tests. They do not replace visual/browser testing of loop entry, sustained wheel contact upside-down, ramp takeoff, landing stability, or iPad touch handling.
+`npm test` includes a headless boot of the real scene (`npm run smoke`) which
+mounts a stubbed canvas, builds the actual track, drives 300 frames, and checks the
+car's position, speed, wheel contacts and telemetry. The Node circuit test also
+covers the straight, the ramp jump and landing, props and wet grip.
+
+These tests do not replace visual browser testing of the ramp takeoff, barrier
+impacts, HUD placement, or touch controls on a real device. Open the page through a
+static server (for example `python3 -m http.server`) rather than `file://`, because
+the scene uses an ES module for Three.js.

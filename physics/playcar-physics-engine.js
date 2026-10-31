@@ -78,7 +78,7 @@
   class TriangleMesh {
     constructor(triangles=[],cellSize=8){
       this.cellSize=cellSize;this.triangles=[];this.cells=new Map();
-      for(const tri of triangles)this.addTriangle(tri[0],tri[1],tri[2]);
+      for(const tri of triangles)this.addTriangle(tri[0],tri[1],tri[2],typeof tri[3]==='number'?tri[3]:(tri[3]?.friction??tri.friction??1));
     }
     static fromTriangles(triangles,cellSize=8){return new TriangleMesh(triangles,cellSize);}
     static fromHeightfield(options={},cellSize=8){
@@ -129,9 +129,10 @@
         const key=this._key(x,y,z);let bucket=this.cells.get(key);if(!bucket){bucket=[];this.cells.set(key,bucket);}bucket.push(tri.id);
       }
     }
-    addTriangle(a,b,c){
+    addTriangle(a,b,c,friction=1){
+      friction=Number.isFinite(Number(friction))?Math.max(0,Number(friction)):1;
       const face=V.norm(V.cross(V.sub(b,a),V.sub(c,a)));
-      const tri={id:this.triangles.length,a:{...a},b:{...b},c:{...c},rawNormal:face,
+      const tri={id:this.triangles.length,a:{...a},b:{...b},c:{...c},friction,rawNormal:face,
         centroid:V.mul(V.add(V.add(a,b),c),1/3),
         min:{x:Math.min(a.x,b.x,c.x),y:Math.min(a.y,b.y,c.y),z:Math.min(a.z,b.z,c.z)},
         max:{x:Math.max(a.x,b.x,c.x),y:Math.max(a.y,b.y,c.y),z:Math.max(a.z,b.z,c.z)}};
@@ -168,7 +169,7 @@
           // suspension push the car through the road and invert steering on banked sections.
           let n=tri.rawNormal;
           if(preferredNormal&&V.len2(preferredNormal)>EPS&&V.dot(n,preferredNormal)<0)n=V.mul(n,-1);
-          best={point:q,normal:n,distance:Math.sqrt(d2),signedDistance:V.dot(V.sub(p,q),n),triangleIndex:tri.id,face:tri};
+          best={point:q,normal:n,distance:Math.sqrt(d2),signedDistance:V.dot(V.sub(p,q),n),triangleIndex:tri.id,friction:tri.friction,face:tri};
         }
       }
       return best;
@@ -295,6 +296,35 @@
     setVelocity(velocity){
       if(!velocity||![velocity.x,velocity.y,velocity.z].every(Number.isFinite))return false;
       this.state.velocity={x:velocity.x,y:velocity.y,z:velocity.z};return true;
+    }
+    setConfig(patch={}) {
+      if(!patch || typeof patch!=='object' || Array.isArray(patch)) throw new TypeError('setConfig expects an object');
+      const next={...this.config};
+      for(const [key,value] of Object.entries(patch)){
+        if(key==='bodyHalfExtents'){
+          if(!value || typeof value!=='object') throw new TypeError('bodyHalfExtents must be an object');
+          const body={...next.bodyHalfExtents};
+          for(const axis of ['x','y','z']) if(value[axis]!==undefined){
+            const n=Number(value[axis]); if(!Number.isFinite(n)||n<=0) throw new RangeError('bodyHalfExtents.'+axis+' must be > 0'); body[axis]=n;
+          }
+          next.bodyHalfExtents=body; continue;
+        }
+        if(!(key in DEFAULTS)) throw new RangeError('Unknown physics parameter: '+key);
+        const n=Number(value); if(!Number.isFinite(n)) throw new TypeError(key+' must be finite');
+        if(['fixedTimeStep','maxFrameDelta','gravity','maxSpeed','wheelbase','suspensionReach','bodyCenterY'].includes(key) && n<=0) throw new RangeError(key+' must be > 0');
+        if(['maxSubsteps','maxCollisionIterations','maxSurfaceCollisionIterations'].includes(key) && (!Number.isInteger(n)||n<1)) throw new RangeError(key+' must be a positive integer');
+        next[key]=n;
+      }
+      this.config=next; return {...this.config,bodyHalfExtents:{...this.config.bodyHalfExtents}};
+    }
+    getSnapshot(){
+      return {version:'1.8.0',preset:this.preset,config:{...this.config,bodyHalfExtents:{...this.config.bodyHalfExtents}},
+        weather:{wind:{...this.weather.wind},wetness:this.weather.wetness},input:{...this.lastInput},
+        state:this.getState(),telemetry:this.getTelemetry(),debug:this.debugSnapshot(),
+        timing:{accumulator:this.accumulator,droppedTime:this.droppedTime,lastStepMs:this.lastStepMs,totalStepMs:this.totalStepMs},
+        checkpoints:this.checkpoints.map(c=>({...c,position:{...c.position},forward:{...c.forward}})),
+        currentCheckpointIndex:this.currentCheckpointIndex,colliderMeshCount:this.colliderMeshes.length,
+        surfaceTriangleCount:this.surfaceMesh?.triangles?.length||0};
     }
     getState(){return cloneState(this.state);}
     getTelemetry(){

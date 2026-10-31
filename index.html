@@ -21,7 +21,7 @@ header,.wrap{max-width:1440px;margin:auto}header{display:flex;align-items:center
 </style>
 </head>
 <body>
-<header><div><div class="eyebrow">PLAYCAR / PHYSICS CONTROL CENTER</div><h1>车辆物理控制与数据中心</h1><p class="sub">统一控制 3D 车辆与物理引擎 · 全参数实时调节 · 全量状态监控 · JSON / CSV 导出</p></div><div class="status" id="runtime-status">正在连接物理引擎…</div></header>
+<header><div><div class="eyebrow">PLAYCAR / PHYSICS CONTROL CENTER</div><h1>车辆物理控制与数据中心</h1><p class="sub">刚体内核 3.0 · 顺序冲量求解 · 组合滑移轮胎 · 全参数实时调节 · JSON / CSV 导出</p></div><div class="status" id="runtime-status">正在连接物理引擎…</div></header>
 <div class="wrap">
 <section class="topgrid">
  <div class="panel"><div class="section-head"><div><h2>实时 3D 车辆</h2><div class="muted">这里的车辆与下方控制台使用同一个物理引擎实例</div></div><div class="muted" id="scene-status">等待 3D 初始化</div></div>
@@ -33,12 +33,27 @@ header,.wrap{max-width:1440px;margin:auto}header{display:flex;align-items:center
   <div class="stat"><small>速度</small><strong id="stat-speed">0</strong></div><div class="stat"><small>纵向速度</small><strong id="stat-long">0</strong></div><div class="stat"><small>横向速度</small><strong id="stat-lat">0</strong></div><div class="stat"><small>侧滑角</small><strong id="stat-slip">0</strong></div>
   <div class="stat"><small>位置 X / Y / Z</small><strong id="stat-pos">0 / 0 / 0</strong></div><div class="stat"><small>垂直速度</small><strong id="stat-vy">0</strong></div><div class="stat"><small>轮胎接触数</small><strong id="stat-wheels">0</strong></div><div class="stat"><small>抓地状态</small><strong id="stat-grip">AIR</strong></div>
   <div class="stat"><small>物理 Tick</small><strong id="stat-tick">0</strong></div><div class="stat"><small>单步耗时</small><strong id="stat-ms">0 ms</strong></div><div class="stat"><small>碰撞累计</small><strong id="stat-collisions">0</strong></div><div class="stat"><small>丢弃时间</small><strong id="stat-dropped">0</strong></div>
+  <div class="stat"><small>挡位 / 转速</small><strong id="stat-rpm">1 / 900</strong></div><div class="stat"><small>电子辅助</small><strong id="stat-aids">—</strong></div><div class="stat"><small>前轴载荷</small><strong id="stat-front-load">0</strong></div><div class="stat"><small>后轴载荷</small><strong id="stat-rear-load">0</strong></div>
  </div><div class="section"><h2>实时控制输入</h2><div class="controls" id="control-inputs"></div></div></div>
 </section>
 <section class="layout">
  <div class="panel"><div class="section-head"><div><h2>全部物理参数</h2><div class="muted">修改后立即写入当前运行中的引擎配置</div></div><span class="muted" id="param-count">0 个参数</span></div>
   <div class="param-tools"><select id="preset"><option value="simcade">Simcade 默认</option><option value="arcade">Arcade</option><option value="simulation">Simulation</option></select><input id="param-search" placeholder="搜索参数名称…" aria-label="搜索参数"><button id="restore-defaults">恢复默认</button></div>
   <div class="params" id="params"><div class="muted">等待引擎参数…</div></div>
+  <div class="section">
+   <div class="section-head"><div><h2>高级车辆动力学</h2><div class="muted">直接驱动刚体内核：差速器、电子辅助、悬挂</div></div><span class="muted" id="rigid-version">3.0</span></div>
+   <div class="param-tools">
+    <select id="drive-layout" aria-label="驱动布局"><option value="rwd">后驱 RWD</option><option value="fwd">前驱 FWD</option><option value="awd">四驱 AWD</option></select>
+    <select id="diff-type" aria-label="差速器"><option value="open">开放式差速器</option><option value="lsd" selected>限滑差速器 LSD</option><option value="locked">锁止差速器</option></select>
+    <input id="diff-bias" type="number" min="1" max="6" step=".1" value="2.2" aria-label="限滑比" title="限滑比 TBR">
+   </div>
+   <div class="controls">
+    <div class="control"><div class="controlhead"><label for="susp-stiffness">悬挂刚度</label><b id="susp-stiffness-value">32000</b></div><input id="susp-stiffness" type="range" min="18000" max="55000" step="500" value="32000"></div>
+    <div class="control"><div class="controlhead"><label for="susp-damping">回弹阻尼</label><b id="susp-damping-value">5600</b></div><input id="susp-damping" type="range" min="2000" max="9000" step="100" value="5600"></div>
+    <div class="control"><div class="controlhead"><label for="esc-toggle">ESC 车身稳定</label><b id="esc-value">开</b></div><input id="esc-toggle" type="range" min="0" max="1" step="1" value="1"></div>
+    <div class="control"><div class="controlhead"><label for="tcs-toggle">TCS 牵引力控制</label><b id="tcs-value">开</b></div><input id="tcs-toggle" type="range" min="0" max="1" step="1" value="1"></div>
+   </div>
+  </div>
  </div>
  <div class="panel"><div class="section-head"><div><h2>天气与环境</h2><div class="muted">风力与路面湿滑度直接影响当前车辆</div></div></div>
   <div class="controls"><div class="control"><div class="controlhead"><label for="wind-x">横向风 X</label><b id="wind-x-value">0</b></div><input id="wind-x" type="range" min="-20" max="20" step=".1" value="0"></div><div class="control"><div class="controlhead"><label for="wind-z">纵向风 Z</label><b id="wind-z-value">0</b></div><input id="wind-z" type="range" min="-20" max="20" step=".1" value="0"></div><div class="control"><div class="controlhead"><label for="wetness">路面湿滑度</label><b id="wetness-value">0%</b></div><input id="wetness" type="range" min="0" max="100" value="0"></div></div>
@@ -51,7 +66,7 @@ header,.wrap{max-width:1440px;margin:auto}header{display:flex;align-items:center
 </section>
 </div>
 <div class="footer">PlayCar Physics Engine · 控制与数据由同一运行实例提供。导出文件在本地浏览器生成，不会上传到服务器。</div>
-<script src="./physics/playcar-physics-all-in-one.js?v=2.0.0"></script>
+<script src="./physics/playcar-physics-all-in-one.js?v=3.0.0"></script>
 <script>
 (()=>{'use strict';
 /*
@@ -105,6 +120,9 @@ function addParam(host,key,label,value,onSet){const row=document.createElement('
 function snapshot(){return runtime?runtime.snapshot():null;}
 function update(){if(!runtime)return;const s=snapshot();lastSnapshot=s;const t=s.telemetry,d=s.debug,p=s.state;
 $('stat-speed').textContent=fmt(t.speed);$('stat-long').textContent=fmt(t.longitudinalSpeed);$('stat-lat').textContent=fmt(t.lateralSpeed);$('stat-slip').textContent=(t.slipAngle*180/Math.PI).toFixed(2)+'°';$('stat-pos').textContent=[p.position.x,p.position.y,p.position.z].map(v=>Number(v).toFixed(2)).join(' / ');$('stat-vy').textContent=fmt(t.verticalSpeed);$('stat-wheels').textContent=String(t.wheelContacts);$('stat-grip').textContent=p.gripState;$('stat-tick').textContent=String(p.tick);$('stat-ms').textContent=fmt(d.physicsMs)+' ms';$('stat-collisions').textContent=String(d.collisionEvents);$('stat-dropped').textContent=fmt(d.droppedTime);
+if($('stat-rpm'))$('stat-rpm').textContent=(t.gear||1)+' / '+Math.round(t.rpm||0);
+if($('stat-aids')){const aids=[];if(t.absActive)aids.push('ABS');if(t.tcsActive)aids.push('TCS');if(t.escActive)aids.push('ESC');$('stat-aids').textContent=aids.join(' ')||'—';}
+if($('stat-front-load')&&Array.isArray(t.tireLoads)){const n=t.tireLoads;$('stat-front-load').textContent=Math.round(n[0]+n[1])+' N';$('stat-rear-load').textContent=Math.round(n[2]+n[3])+' N';}
 $('data-state').textContent=JSON.stringify(s.state,null,2);$('data-telemetry').textContent=JSON.stringify(s.telemetry,null,2);$('data-debug').textContent=JSON.stringify({debug:s.debug,timing:s.timing},null,2);$('data-engine').textContent=JSON.stringify({version:s.version,preset:s.preset,weather:s.weather,input:s.input,checkpoint:{index:s.currentCheckpointIndex,items:s.checkpoints},geometry:{surfaceTriangles:s.surfaceTriangleCount,colliderMeshes:s.colliderMeshCount},config:s.config},null,2);
 if(recording){const now=performance.now();if(now-lastRecord>=100){records.push({time:Date.now(),...s});lastRecord=now;$('record-info').textContent='正在记录 · '+records.length+' 条数据';$('record-info').classList.add('active');}}
 }
@@ -134,10 +152,29 @@ $('preset').addEventListener('change',()=>{if(!runtime)return;const name=$('pres
 $('record-start').addEventListener('click',start);$('record-stop').addEventListener('click',stop);$('record-clear').addEventListener('click',()=>{records=[];$('record-info').textContent='记录已清空 · 0 条数据';});
 $('export-json').addEventListener('click',()=>{if(!runtime)return;download('playcar-full-data-'+Date.now()+'.json','application/json;charset=utf-8',JSON.stringify({exportedAt:new Date().toISOString(),engine:snapshot(),recordCount:records.length,records},null,2));});
 $('export-csv').addEventListener('click',()=>download('playcar-telemetry-'+Date.now()+'.csv','text/csv;charset=utf-8','\ufeff'+csvText(records)));
-$('export-config').addEventListener('click',()=>{if(!runtime)return;download('playcar-physics-config-'+Date.now()+'.json','application/json;charset=utf-8',JSON.stringify({version:runtime.engine.constructor.name,preset:runtime.engine.preset,config:runtime.engine.config,weather:runtime.engine.weather},null,2));});
+$('export-config').addEventListener('click',()=>{if(!runtime)return;download('playcar-physics-config-'+Date.now()+'.json','application/json;charset=utf-8',JSON.stringify({version:runtime.engine.constructor.name,solver:runtime.engine.solver||null,preset:runtime.engine.preset,config:runtime.engine.config,rigidConfig:typeof runtime.engine.getRigidConfig==='function'?runtime.engine.getRigidConfig():undefined,weather:runtime.engine.weather},null,2));});
 $('copy-snapshot').addEventListener('click',()=>{if(!runtime)return;const data=JSON.stringify(snapshot(),null,2);if(navigator.clipboard?.writeText)navigator.clipboard.writeText(data).then(()=>$('copy-snapshot').textContent='已复制').catch(()=>$('copy-snapshot').textContent='复制失败');});
-$('run-checks').addEventListener('click',()=>{if(!runtime)return;const e=runtime.engine,results=[];const check=(name,fn)=>{try{fn();results.push('PASS · '+name);}catch(err){results.push('FAIL · '+name+' — '+err.message);}};check('参数完整且有限',()=>{for(const [k,v] of Object.entries(e.config)){if(typeof v==='number'&&!Number.isFinite(v))throw Error(k+' 非有限');}});check('快照结构',()=>{const s=e.getSnapshot();for(const k of ['state','telemetry','debug','config','weather','input','timing'])if(!(k in s))throw Error('缺少 '+k);});check('参数校验拒绝非法值',()=>{let rejected=false;try{e.setConfig({gravity:NaN});}catch(_){rejected=true;}if(!rejected)throw Error('NaN 未被拒绝');});check('实时控制接口',()=>{const before=e.lastInput;e.setInput({throttle:.25});if(e.lastInput.throttle!==.25)throw Error('油门未写入');e.setInput(before);});$('check-results').textContent=results.join('\n');});
-window.addEventListener('playcar:ready',attach);
+$('run-checks').addEventListener('click',()=>{if(!runtime)return;const e=runtime.engine,results=[];const check=(name,fn)=>{try{fn();results.push('PASS · '+name);}catch(err){results.push('FAIL · '+name+' — '+err.message);}};check('参数完整且有限',()=>{for(const [k,v] of Object.entries(e.config)){if(typeof v==='number'&&!Number.isFinite(v))throw Error(k+' 非有限');}});check('快照结构',()=>{const s=e.getSnapshot();for(const k of ['state','telemetry','debug','config','weather','input','timing'])if(!(k in s))throw Error('缺少 '+k);});check('参数校验拒绝非法值',()=>{let rejected=false;try{e.setConfig({gravity:NaN});}catch(_){rejected=true;}if(!rejected)throw Error('NaN 未被拒绝');});check('实时控制接口',()=>{const before=e.lastInput;e.setInput({throttle:.25});if(e.lastInput.throttle!==.25)throw Error('油门未写入');e.setInput(before);});check('刚体内核已连接',()=>{if(!e.rigidBody)throw Error('缺少 rigidBody');if(!e.rigidBody.world)throw Error('缺少碰撞世界');});check('高级动力学接口',()=>{if(typeof e.setRigidConfig!=='function')throw Error('缺少 setRigidConfig');if(typeof e.setDifferential!=='function')throw Error('缺少 setDifferential');const r=e.setDifferential('lsd','rwd',2.2);if(r.layout!=='rwd')throw Error('差速器设置未生效');});$('check-results').textContent=results.join('\n');});
+function applyRigidConfig(){
+ if(!runtime||!runtime.engine||typeof runtime.engine.setRigidConfig!=='function')return;
+ const stiffness=Number($('susp-stiffness').value),damping=Number($('susp-damping').value);
+ const esc=$('esc-toggle').value==='1',tcs=$('tcs-toggle').value==='1';
+ const layout=$('drive-layout').value,type=$('diff-type').value,bias=Math.max(1,Number($('diff-bias').value)||2.2);
+ try{
+  runtime.engine.setRigidConfig({suspension:{stiffness,dampingRebound:damping},aids:{esc,tcs,abs:true}});
+  runtime.engine.setDifferential(type,layout,bias);
+  $('susp-stiffness-value').textContent=String(stiffness);
+  $('susp-damping-value').textContent=String(damping);
+  $('esc-value').textContent=esc?'开':'关';
+  $('tcs-value').textContent=tcs?'开':'关';
+  $('rigid-version').textContent='3.0 · '+(runtime.engine.solver||'rigid-body-3.0.0');
+ }catch(e){$('check-results').textContent='高级参数设置失败：'+e.message;}
+}
+for(const id of ['drive-layout','diff-type','diff-bias','susp-stiffness','susp-damping','esc-toggle','tcs-toggle']){
+ const el=$(id);if(!el)continue;
+ el.addEventListener(el.tagName==='SELECT'?'change':'input',applyRigidConfig);
+}
+window.addEventListener('playcar:ready',()=>{attach();if(runtime)applyRigidConfig();});
 window.addEventListener('playcar:provider-ready',attach);
 if(PhysicsLab.provider||window.PlayCarRuntime)attach();
 else setTimeout(()=>{if(!runtime)status('等待物理引擎插件；检查引擎入口 / WebGL',false);},12000);

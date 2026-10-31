@@ -10,7 +10,7 @@ const bundle=fs.readFileSync(path.join(root,'physics','playcar-physics-all-in-on
 test('root page is the PlayCar interactive physics control center',()=>{
   assert.match(html,/<title>PlayCar · Physics Control Center<\/title>/);
   assert.match(html,/id="scene3d"/);
-  assert.match(html,/playcar-physics-all-in-one\.js\?v=2\.0\.0/);
+  assert.match(html,/playcar-physics-all-in-one\.js\?v=3\.0\.0/);
   assert.match(bundle,/PlayCarPhysicsEngine/);
 });
 test('physics page exposes live touch controls, telemetry and automated checks',()=>{

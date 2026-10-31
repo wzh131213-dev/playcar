@@ -3,16 +3,19 @@ on:
   push:
     branches:
       - feature/playcar-3d-stunt-track-tuning
+      - "arena/**"
   pull_request:
     branches:
+      - main
       - feature/playcar-3d-stunt-track-tuning
   workflow_dispatch:
 jobs:
   physics-tests:
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-      - run: node --test tests/physics-regression.test.js
+      - run: npm run build
+      - run: npm test

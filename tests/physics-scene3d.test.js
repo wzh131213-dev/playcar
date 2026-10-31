@@ -11,7 +11,7 @@ const source=fs.readFileSync(path.join(root,'physics','scene3d.js'),'utf8');
 test('physics lab loads the bundled interactive 3D runtime and canvas host',()=>{
   assert.ok(html.includes('id="scene3d"'));
   assert.ok(html.includes('id="scene-status"'));
-  assert.ok(html.includes('./physics/playcar-physics-all-in-one.js?v=2.0.0'));
+  assert.ok(html.includes('./physics/playcar-physics-all-in-one.js?v=3.0.0'));
   assert.ok(bundle.includes('scene3d')&&bundle.includes('WebGLRenderer'));
 });
 test('3D scene creates renderer, camera, lights and collision meshes',()=>{

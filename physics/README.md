@@ -1,215 +1,229 @@
-# PlayCar Physics Engine 1.7.0
+# PlayCar Physics 3.0
 
-A dependency-free, browser-first 3D vehicle handling engine. Rendering, input devices, track authoring, and game rules stay in the host game; this package owns vehicle motion and track-contact queries.
+A dependency-free 3D rigid-body and vehicle-dynamics engine that runs in the browser,
+in Node, and inside the interactive 3D lab (`index.html`).
 
-## What it provides
+PlayCar 3.0 is a ground-up rigid-body core plus a purpose-built vehicle layer. It is
+**not** a wrapper around Bullet, Box2D, PhysX, Rapier or Ammo.js, and the single-file
+bundle contains no WASM. The only external dependency is Three.js for rendering the
+lab; the physics itself has none.
 
-- Fixed-step simulation with render-frame interpolation and a substep budget.
-- Vehicle acceleration, braking/reverse, rolling resistance, aerodynamic drag, wind, wet grip, downforce, slip-angle tire forces, and high-speed steering reduction.
-- Four wheel probes, road mesh support, chassis/track penetration recovery, and optional triangle-mesh wall colliders.
-- Airborne yaw, pitch/roll controls, and passive pitch recovery when the player is not actively pitching.
-- Checkpoint crossing, weather settings, collision/contact state, telemetry, and defensive state snapshots.
-- Triangle-mesh construction from raw triangles, Three.js-style BufferGeometry position/index data, or a procedural heightfield.
-- Integration aliases for common game loops: `advance(dt,input)`, `update(dt,input)`, and `step(dt,input)`.
-- Three handling profiles: `arcade`, `simcade` (default), and `simulation`.
+```
+physics/rigidbody-core.js            general rigid-body world (shapes, solver, events)
+physics/rigidbody-vehicle-engine.js  suspension, tires, drivetrain, aids, telemetry
+physics/playcar-unified.js           3.0 runtime + 1.8-compatible facade
+physics/playcar-physics-engine.js    legacy kinematic engine (compatibility only)
+physics/scene3d.js                   Three.js driving lab (ES module)
+physics/playcar-physics-all-in-one.js generated bundle (do not edit)
+tools/build-bundle.js                bundle generator + syntax gate
+tools/benchmark.js                   fixed-step throughput benchmark
+vendor/three.*                       pinned Three.js 0.180.0 for offline labs
+```
 
-This is a configurable **simcade** model, not a validated tire/vehicle homologation package. Realistic feel depends on your world scale, road mesh quality, vehicle dimensions, target handling, and calibration data. No physics engine can be guaranteed to fit every game perfectly without integration and tuning.
+## Quick start
 
-## Files
+```bash
+npm run build     # regenerate physics/playcar-physics-all-in-one.js
+npm test          # 120+ Node tests (node --test)
+npm run bench     # solver/vehicle throughput
+npm run smoke     # boot the real 3D scene headlessly and drive it
+```
 
-- `physics/playcar-physics-engine.js` — runtime engine (browser global and CommonJS export).
-- `tests/playcar-physics.test.js` — engine behavior tests.
-- `tests/physics-regression.test.js` — regression tests.
-- `tests/physics-test-page.test.js` — checks that the published root page is the physics lab.
-- `index.html` — browser test lab, not the racing game.
-
-## Quick start (plain browser)
-
-Load the engine before your game code:
+### Browser
 
 ```html
-<script src="./physics/playcar-physics-engine.js?v=1.7.0"></script>
+<script src="./physics/playcar-physics-all-in-one.js?v=3.0.0"></script>
 <script>
   const { PlayCarPhysicsEngine, TriangleMesh } = window.PlayCarPhysicsEngine;
 
-  // Replace this example with your own road triangles or geometry adapter.
-  const road = TriangleMesh.fromTriangles([
-    [{x:-100,y:0,z:-100},{x:-100,y:0,z:100},{x:100,y:0,z:100}],
-    [{x:-100,y:0,z:-100},{x:100,y:0,z:100},{x:100,y:0,z:-100}]
+  const surface = TriangleMesh.fromTriangles([
+    [{ x: -100, y: 0, z: -100 }, { x: -100, y: 0, z: 100 }, { x: 100, y: 0, z: 100 }, 1.0],
+    [{ x: -100, y: 0, z: -100 }, { x: 100, y: 0, z: 100 }, { x: 100, y: 0, z: -100 }, 1.0]
   ]);
 
-  const vehicle = new PlayCarPhysicsEngine({
-    surfaceMesh: road,
-    position: {x:0,y:0.12,z:0},
-    preset: 'simcade',
-    config: {
-      // Optional game-specific tuning overrides.
-      wheelbase: 2.7,
-      maxSpeed: 78
-    }
+  const car = new PlayCarPhysicsEngine({
+    surfaceMesh: surface,
+    groundPlaneY: 0,
+    position: { x: 0, y: 0.08, z: 0 },
+    preset: 'simcade'
   });
 
-  function gameFrame(deltaSeconds, controls) {
-    // Call once per render frame; the engine internally uses a fixed timestep.
-    vehicle.update(deltaSeconds, {
-      throttle: controls.accelerate, // 0..1
-      brake: controls.brake,         // 0..1
-      steer: controls.steer,         // -1 left .. +1 right
-      handbrake: controls.handbrake  // 0..1
+  function frame(dt, controls) {
+    car.advance(dt, {
+      throttle: controls.accelerate,  // 0..1
+      brake: controls.brake,          // 0..1
+      steer: controls.steer,          // -1 left .. +1 right
+      handbrake: controls.handbrake   // 0..1
     });
-
-    const pose = vehicle.interpolatedState();
-    const telemetry = vehicle.getTelemetry();
-
-    // The host game's renderer owns this part:
-    // carObject.position.set(pose.position.x, pose.position.y, pose.position.z);
-    // carObject.quaternion.set(pose.orientation.x, pose.orientation.y,
-    //   pose.orientation.z, pose.orientation.w);
-    // HUD speed = telemetry.speed;
+    const pose = car.rigidBody.interpolatedState(); // render with this
+    draw(pose, car.getTelemetry());
   }
 </script>
 ```
 
-## Presets and calibration
+`gas/left/right` booleans are accepted for compatibility with 1.x input maps
+(`{ gas, brake, left, right, handbrake }`).
+
+### Node
 
 ```js
-const car = new PlayCarPhysicsEngine({ surfaceMesh: road, preset: 'arcade' });
-// preset: 'arcade' | 'simcade' | 'simulation'
+const Core = require('./physics/rigidbody-core.js');
+const Vehicle = require('./physics/rigidbody-vehicle-engine.js');
 
-// Per-game overrides take precedence over the selected preset:
-const tunedCar = new PlayCarPhysicsEngine({
-  surfaceMesh: road,
-  preset: 'simulation',
-  config: {
-    gravity: 9.81,
-    tireGrip: 1.4,
-    maxSteerAngle: 0.38,
-    bodyHalfExtents: { x: 0.95, y: 0.65, z: 1.9 }
-  }
-});
+const world = new Core.World({ gravity: { x: 0, y: -9.81, z: 0 } });
+world.addGroundPlane(0, { friction: 0.9 });
+world.addBody(new Core.Body({
+  mass: 10,
+  shape: new Core.BoxShape({ x: 0.3, y: 0.3, z: 0.3 }),
+  position: { x: 0, y: 2, z: 0 },
+  ccd: true
+}));
+for (let i = 0; i < 600; i++) world.fixedStep(1 / 120);
 ```
 
-All lengths/speeds are **game-world units** unless you deliberately use a metre-based scale. If 1 world unit represents 1 metre, set vehicle dimensions, gravity, velocities, track mesh and camera scale consistently. The included profiles tune handling feel; they are not automatically calibrated against a specific real vehicle.
+## What is in 3.0
 
-## Input contract
+### Rigid-body core
 
-The engine accepts keyboard booleans and analog axes. Analog values are clamped to safe ranges.
+- Shapes: oriented box, sphere, infinite plane, indexed triangle mesh with a
+  surface-area-heuristic BVH.
+- Narrowphase: SAT box/box with face-clipped manifolds, triangle/box
+  (vertex-face, vertex-box, edge-edge fallbacks), sphere/box, sphere/mesh and
+  box/mesh aggregation with manifold reduction.
+- Contacts: speculative contact generation with a velocity-scaled lookahead, so a
+  car cannot tunnel through a thin barrier at race speed, plus four-point manifold
+  reduction and stable contact IDs for warm starting.
+- Solver: sequential impulses with accumulated normal/friction impulses, warm
+  starting across frames, restitution, Coulomb friction with a tangent basis,
+  Baumgarte bias, a separate non-linear position pass, velocity and position
+  iteration counts, and deterministic solve ordering.
+- Sleep islands: bodies with low linear/angular velocity for 0.6 s sleep and wake
+  on contact, impulse, or force; the vehicle chassis is deliberately excluded.
+- Ray casting against all shapes and the BVH mesh, contact begin/end events,
+  material friction/restitution (including per-triangle road friction), and
+  deterministic fixed-step/accumulator stepping.
 
-| Property | Range | Meaning |
-|---|---:|---|
-| `throttle` / `accelerate` / `gas` | 0..1 | Acceleration |
-| `brake` | 0..1 | Brake; holding after stopping selects reverse while grounded |
-| `steer` / `steering` | -1..1 | Negative left, positive right |
-| `left`, `right` | boolean | Digital steering fallback |
-| `handbrake` / `hand` | 0..1 | Handbrake/drift input |
-| `pitch` | -1..1 | Extra airborne pitch input |
-| `roll`, `yaw` | -1..1 | Extra airborne roll/yaw input |
+### Vehicle layer
 
-Example with a persistent input source:
+- Four independent suspensions with progressive springs, asymmetric bump/rebound
+  damping, bump stops, anti-roll bars, and per-wheel normal-load telemetry.
+- Longitudinal and lateral load transfer routed proportionally per axle/side, so
+  load never becomes negative and the total load is conserved.
+- Combined-slip tires: Pacejka-style magic formula, slip-angle and slip-ratio
+  curves, load sensitivity, relaxation length, and a friction ellipse that
+  prioritises longitudinal demand and clamps the resultant force.
+- Drivetrain: 6-speed automatic with shift time, torque converter-ish launch
+  behaviour, engine braking, reverse-free arcade forward drive, open / limited-slip
+  (TBR) / locked differentials, and RWD / FWD / AWD layouts.
+- Aids: ABS with per-wheel slip control, TCS with throttle cut, ESC yaw-rate
+  correction. All report state in telemetry.
+- Suspension geometry: hardpoint-derived camber/toe, caster, KPI, scrub radius,
+  mechanical trail, jacking, roll-centre migration, and anti-dive/anti-squat.
+- Aero: quadratic drag and downforce; chassis roll/pitch stabilisation springs for
+  a planted simcade feel without arcade auto-alignment.
+- Props: `addProp({ shape, halfExtents, radius, mass, position, friction,
+  restitution })` inserts dynamic crates/cones into the same world, so the car can
+  knock them around and the props collide with each other.
+- Render interpolation (`rigidBody.interpolatedState()`), `getWheelState()`, and a
+  deep-cloned `getSnapshot()` for UI/telemetry.
+
+### Unified runtime
+
+`PlayCarPhysicsEngine` in the bundle is the 3.0 adapter. It keeps the 1.8 public
+surface (`advance`, `setInput`, `setWeather`, `setConfig`, `getSnapshot`,
+`TriangleMesh`, presets) and adds:
 
 ```js
-car.setInput({ throttle: 0.7, steer: -0.25 });
-car.advance(deltaSeconds); // uses the last setInput() value
-car.setInput({});          // explicitly release all controls
+car.setRigidConfig({ suspension: { stiffness: 40000 }, tire: { mu: 1.2 }, aids: { esc: true } });
+car.setDifferential('lsd', 'awd', 3.4);  // type, layout, limited-slip bias
+car.rigidBody;                            // rigid vehicle (world, chassis, telemetry)
+car.getWheelState();                      // { steer, omega[4], contacts[4], slip[4] }
+car.addProp({ shape: 'cone', mass: 6, position: { x: 3, y: 1, z: 0 } });
 ```
 
-Always release controls when a key/button is released, a touch is cancelled, the page loses focus, the game pauses, or a controller disconnects. The engine does not own your browser events or input devices.
+Legacy config keys are mapped onto the rigid model every time `setConfig` changes
+(`tireGrip`, `gravity`, `maxSpeed`, `engineAcceleration`, `brakeAcceleration`,
+`suspensionRestLength`, `maxSteerAngle`, `highSpeedSteerScale`,
+`bodyHalfExtents`, ...). Weather `wetness` scales the tire μ; wind and
+per-triangle friction are applied to tire forces. See
+[`RIGIDBODY-ENGINE-3.0.md`](./RIGIDBODY-ENGINE-3.0.md) for the full API, mapping
+table, telemetry schema, and design notes.
 
-## Track and collider adapters
+## The 3D lab
 
-### Three.js BufferGeometry
+`index.html` loads the single bundle and a pinned Three.js from `vendor/`, with a
+CDN fallback. It contains:
 
-Update the geometry's world matrix before passing its position/index attributes. The optional second argument is the geometry's 16-number world matrix elements.
+- a closed Catmull-Rom circuit with smoothed banking, a wet section with lower
+  per-triangle friction, continuous barriers, and a tabletop jump;
+- a rigid-body prop set (cones and crates) that the car can hit;
+- chase/free camera, skid marks, HUD (speed, gear, RPM, aids, slip, contacts);
+- a control center that edits the legacy config and the 3.0 suspension, diff,
+  ESC/TCS settings live, and exports JSON/CSV snapshots.
 
-```js
-roadMesh.updateWorldMatrix(true, false);
-const roadPhysicsMesh = TriangleMesh.fromBufferGeometry(
-  roadMesh.geometry,
-  roadMesh.matrixWorld.elements,
-  6
-);
-const wallPhysicsMesh = TriangleMesh.fromBufferGeometry(
-  wallMesh.geometry,
-  wallMesh.matrixWorld.elements,
-  6
-);
-car.setSurfaceMesh(roadPhysicsMesh);
-car.setColliderMeshes([wallPhysicsMesh]);
-```
+Open the page from a static server, e.g. `npx serve .` or `python3 -m http.server`.
+ES modules are used for Three.js, so `file://` will not work.
 
-### Procedural heightfield
+## Compatibility
 
-```js
-const terrain = TriangleMesh.fromHeightfield({
-  width: 300,
-  depth: 300,
-  segmentsX: 80,
-  segmentsZ: 80,
-  origin: {x:0,y:0,z:0},
-  heightAt: (x,z) => Math.sin(x * 0.025) * Math.cos(z * 0.03) * 2
-}, 5);
-```
+- `physics/playcar-physics-engine.js` remains the legacy 1.8 engine and is still
+  covered by its own tests. The unified 3.0 adapter is a drop-in replacement for the
+  bundle's global.
+- The bundle exposes `window.PlayCarRigidBodyCore` (core), `window.PlayCarRigidBody`
+  (vehicle layer) and `window.PlayCarPhysicsEngine` (unified 3.0 API).
+- In the lab, `window.PlayCarRuntime` is the UI facade
+  (`setInput/setWeather/setConfig/setRigidConfig/reset/snapshot/engine`).
 
-For moving roads or destructible geometry, rebuild/update the corresponding mesh deliberately; this engine does not automatically track renderer transforms or deforming vertices. Avoid passing the same road mesh as a wall collider unless the host intends it to behave as a solid obstacle.
+## Performance
 
-## Renderer-neutral adapter
+Measured with `npm run bench` on Node 22 (single core, no JIT warmup beyond 60
+steps; your numbers will vary):
 
-If a 3D engine's vehicle object exposes mutable `position` and `quaternion` objects (for example Three.js objects), use the adapter to keep pose synchronization out of your game loop:
+| Scenario | Cost | Throughput |
+| --- | --- | --- |
+| Core: 60-box stack, 160 contacts | 1.3–1.6 ms / step | ~630–760 steps/s |
+| Vehicle: 1 car + 40 props | 0.96 ms / step | ~1,040 steps/s |
+| 120 Hz frame budget | 8.33 ms | vehicle ≈ 11.6% of a core |
 
-```js
-const { PlayCarPhysicsEngine, TriangleMesh, createRenderAdapter } =
-  window.PlayCarPhysicsEngine;
-const carPhysics = new PlayCarPhysicsEngine({ surfaceMesh: roadPhysicsMesh });
-const carAdapter = createRenderAdapter(carPhysics, carObject);
+The vehicle runs fixed 1/120 s substeps with a 24-substep cap; rendering can run at
+any frame rate and uses interpolated poses.
 
-function frame(dt) {
-  carAdapter.update(dt, {
-    throttle: input.accelerate,
-    brake: input.brake,
-    steer: input.steer
-  });
-  // carObject.position/quaternion are now synchronized to the interpolated pose.
-}
-```
+## Validation
 
-The adapter supports objects with `.set(x,y,z)` / `.set(x,y,z,w)` methods or plain mutable `x/y/z/w` properties. It does not create a renderer, camera, input system, or asset loader. Keep the host game's object origin and the engine's vehicle reference point aligned; adjust mesh offsets in the host renderer rather than silently changing physics coordinates.
+`npm test` runs 120+ tests, including:
 
-## State, forces, and telemetry
+- core: box settling and sleeping, 120 m/s thin-wall non-tunnelling, restitution,
+  slope friction (μ = 1.1 holds 30°, μ = 0.05 slides), stack stability, raycasts,
+  determinism, contact events, wake-on-impact;
+- vehicle: suspension bump stops, load transfer conservation, combined-slip
+  friction ellipse, ABS on low μ, props settling, hardpoint geometry, caster/KPI,
+  roll/pitch stabilisation, differential layouts;
+- unified: legacy weather/config mapping, 3.0 telemetry, snapshot shape, runtime
+  tuning;
+- lab: the real `scene3d.js` booted headlessly with a stubbed WebGL renderer and
+  driven for 300 frames (`npm run smoke`), plus end-to-end drives on the same
+  circuit geometry (straight, ramp jump, landing, props, wet weather);
+- page/build: the generated bundle parses, the lab loads the current bundle
+  version, and the single-file build stays in sync.
 
-- `getState()` returns a copy of the simulation state so external UI code cannot mutate the live position accidentally.
-- `interpolatedState()` returns a render-friendly pose between fixed simulation steps.
-- `getTelemetry()` reports speed, longitudinal/lateral speed, slip angle, vertical speed, contact normal and grounded/airborne state.
-- `setVelocity({x,y,z})` sets linear velocity after finite-number validation.
-- `applyImpulse({x,y,z}, worldPoint?)` adds a velocity impulse; optional world point adds a simplified angular response.
-- `setWeather({wind:{x,z},wetness})` configures horizontal wind and wetness from 0 to 1.
-- `addCheckpoint({id,position,forward,radius})`, `setCheckpoint(id)`, and `resetToCheckpoint()` manage checkpoint recovery.
-- `debugSnapshot()` exposes step timing, tick count, collision counters and dropped simulation time.
+## Honest limitations
 
-## Testing
+- Dynamic bodies are boxes and spheres; triangle meshes are static geometry. There
+  is no convex-hull decomposition, no capsule, no compound body and no joints.
+- The dynamic broadphase is an AABB pair loop (O(n²)); static meshes use a BVH. The
+  lab's tens of props are fine, thousands are not.
+- "CCD" is implemented as speculative contacts with a velocity-expanded lookahead,
+  not a swept-box continuous solver. It prevents tunnelling in the tested speed
+  range but is not a replacement for a full conservative-advancement pass.
+- The tire model is a calibrated Pacejka-style curve, not a thermal/brush model and
+  not homologated against measured tire data.
+- Determinism is guaranteed for a fixed step sequence on one JS engine; floating
+  point differences across engines are possible.
+- Three.js is only needed by the lab; physics files run headless.
 
-With Node.js installed:
+## History
 
-```bash
-node --check physics/playcar-physics-engine.js
-node --test tests/*.test.js
-```
-
-The root page is a visual/browser test lab and does not include the original racing game. Automated Node tests validate the numerical/API layer; a real browser and target-device run is still needed to verify a specific game's renderer, touch controls, camera, and frame pacing.
-
-
-## Interactive 3D physics scene
-
-The root Physics Lab now includes a Three.js-powered driving scene in `physics/scene3d.js`. It builds a shaded 3D environment with a solid road surface, collision barriers, a ramp, a detailed procedural car, chase camera, live telemetry, keyboard controls, and pointer-based touch controls.
-
-- Open the root page over HTTPS (GitHub Pages or another static host); the 3D renderer loads Three.js 0.180.0 from jsDelivr.
-- Drive with WASD or arrow keys. On touch devices, press and hold the on-screen direction/throttle/brake controls.
-- Use **重置 3D 车辆** to reset the car, and toggle the follow camera to inspect the scene.
-- The physics collision mesh is generated separately from the visual Three.js meshes. Keep the render geometry and physics triangles aligned when editing the track.
-- This scene is a test environment, not a complete racing game. A network connection is required for the Three.js CDN module; the physics engine itself remains dependency-free.
-
-
-## Realistic tire grip and built-in solid ground (1.8.0)
-
-The default vehicle setup now uses metre/second-style gravity and a dimensionless dry-road tire friction coefficient near 1.0 instead of the previous arcade-scaled 3.6 value. Full-throttle acceleration and braking have been reduced to road-car ranges; the handbrake uses a lower grip coefficient to permit controlled sliding. Wetness reduces available tire grip.
-
-The 3D scene's visible grass floor is now triangulated into the same support mesh as the asphalt road and ramp, so wheel probes and chassis penetration checks can contact the entire visible ground area. A matching `groundPlaneY` fallback at the grass-floor height catches the chassis if it falls beyond sampled triangles. The road and ramp remain layered above the grass floor.
+- 3.0: rigid-body core, vehicle layer, combined-slip tires, aids, props, lab rebuild.
+- 2.8: hardpoint suspension geometry, caster/KPI, bump stops.
+- 1.8: per-triangle friction and solid ground support.
+- 1.7: original simcade kinematic engine.
