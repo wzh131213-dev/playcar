@@ -16,6 +16,8 @@ const legacy = read('physics', 'playcar-physics-engine.js').trimEnd();
 const core = read('physics', 'rigidbody-core.js').trimEnd();
 const vehicle = read('physics', 'rigidbody-vehicle-engine.js').trimEnd();
 const unified = read('physics', 'playcar-unified.js').trimEnd();
+const weather = read('physics', 'weather-system.js').trimEnd();
+const weatherVisuals = read('physics', 'weather-visuals.js').trimEnd();
 
 let scene = read('physics', 'scene3d.js');
 scene = scene.replace(/^import\s+\*\s+as\s+THREE[^\n]*\n/, '');
@@ -31,7 +33,8 @@ const bundle = `/* PlayCar Physics Engine + Three.js Scene - single-file build $
  *   2. Rigid-body core (broadphase, manifolds, sequential-impulse solver)
  *   3. Rigid-body vehicle (suspension, combined-slip tires, drivetrain, aids)
  *   4. Unified runtime facade
- *   5. Three.js driving lab
+ *   5. Weather model + Three.js weather visuals
+ *   6. Three.js driving lab
  */
 
 ${legacy}
@@ -41,6 +44,10 @@ ${core}
 ${vehicle}
 
 ${unified}
+
+${weather}
+
+${weatherVisuals}
 
 (async function startPlayCar3DScene(){
   let THREE;

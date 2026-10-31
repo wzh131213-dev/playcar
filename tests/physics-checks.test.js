@@ -30,8 +30,8 @@ test('physics check suite passes all isolated scenarios', () => {
   const results = Array.from(result.results);
   const failures = results.filter(r => !r.ok).map(r => `${r.id}: ${r.detail}`);
   assert.equal(failures.length, 0, 'failed checks:\n' + failures.join('\n'));
-  assert.equal(result.total, 10);
-  assert.equal(result.passed, 10);
+  assert.equal(result.total, 11);
+  assert.equal(result.passed, 11);
   assert.equal(result.failed, 0);
   assert.equal(result.ok, true);
   assert.equal(result.engine, '3.0.0');

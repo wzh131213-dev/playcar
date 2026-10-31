@@ -6,7 +6,8 @@
  *   2. Rigid-body core (broadphase, manifolds, sequential-impulse solver)
  *   3. Rigid-body vehicle (suspension, combined-slip tires, drivetrain, aids)
  *   4. Unified runtime facade
- *   5. Three.js driving lab
+ *   5. Weather model + Three.js weather visuals
+ *   6. Three.js driving lab
  */
 
 /* PlayCar Physics Engine 1.8.0
@@ -266,7 +267,19 @@
     }
     setWeather(weather={}){
       const wind=weather.wind||{};
-      this.weather={wind:{x:Number.isFinite(wind.x)?V.clamp(wind.x,-20,20):0,z:Number.isFinite(wind.z)?V.clamp(wind.z,-20,20):0},wetness:Number.isFinite(weather.wetness)?V.clamp(weather.wetness,0,1):0};
+      const prev=this.weather||{};
+      const num=(value,fallback,min,max)=>{
+        const n=Number(value);
+        return Number.isFinite(n)?V.clamp(n,min,max):fallback;
+      };
+      this.weather={
+        wind:{x:num(wind.x,0,-20,20),z:num(wind.z,0,-20,20)},
+        wetness:num(weather.wetness,0,0,1),
+        rain:num(weather.rain,prev.rain||0,0,1),
+        snow:num(weather.snow,prev.snow||0,0,1),
+        fog:num(weather.fog,prev.fog||0,0,1),
+        temperature:num(weather.temperature,Number.isFinite(prev.temperature)?prev.temperature:20,-40,60)
+      };
       return {...this.weather,wind:{...this.weather.wind}};
     }
     _normalizeInput(input={}){
@@ -330,7 +343,10 @@
     }
     getSnapshot(){
       return {version:'1.8.0',preset:this.preset,config:{...this.config,bodyHalfExtents:{...this.config.bodyHalfExtents}},
-        weather:{wind:{...this.weather.wind},wetness:this.weather.wetness},input:{...this.lastInput},
+        weather:{wind:{...this.weather.wind},wetness:this.weather.wetness,
+          rain:this.weather.rain||0,snow:this.weather.snow||0,fog:this.weather.fog||0,
+          temperature:Number.isFinite(this.weather.temperature)?this.weather.temperature:20},
+        input:{...this.lastInput},
         state:this.getState(),telemetry:this.getTelemetry(),debug:this.debugSnapshot(),
         timing:{accumulator:this.accumulator,droppedTime:this.droppedTime,lastStepMs:this.lastStepMs,totalStepMs:this.totalStepMs},
         checkpoints:this.checkpoints.map(c=>({...c,position:{...c.position},forward:{...c.forward}})),
@@ -2534,6 +2550,11 @@
     airDensity: 1.225,
     downforceArea: 0.0,
     downforceFront: 0.45,
+    // Weather / environment. `wind` is the air velocity in world space (m/s);
+    // drag, downforce and the crosswind side force all use relative airspeed.
+    wind: { x: 0, y: 0, z: 0 },
+    sideArea: 1.15,
+    aeroYawArm: 0.35,
     restitution: 0.08,
     collisionFriction: 0.55,
     bodyHalf: { x: 0.88, y: 0.48, z: 2.05 },
@@ -3315,14 +3336,31 @@
         }
       }
 
-      /* 3. aerodynamics. */
+      /* 3. aerodynamics, relative to the wind. */
       const forward = Q.rotate(s.orientation, { x: 0, y: 0, z: -1 });
       const right = Q.rotate(s.orientation, { x: 1, y: 0, z: 0 });
+      const up = Q.rotate(s.orientation, { x: 0, y: 1, z: 0 });
+      const wind = c.wind || { x: 0, y: 0, z: 0 };
+      const air = {
+        x: s.velocity.x - (wind.x || 0),
+        y: s.velocity.y - (wind.y || 0),
+        z: s.velocity.z - (wind.z || 0)
+      };
+      const airSpeed = V.len(air);
       const speed = V.len(s.velocity);
-      const drag = 0.5 * c.airDensity * c.dragArea * speed * speed;
-      if (speed > 1e-5) this._applyForce(V.mul(s.velocity, -drag / speed), V.zero());
-      const downforce = 0.5 * c.airDensity * c.downforceArea * speed * speed;
-      if (downforce) this._applyForce(V.mul(Q.rotate(s.orientation, { x: 0, y: -1, z: 0 }), downforce), V.zero());
+      const q = 0.5 * c.airDensity * airSpeed;
+      const drag = q * c.dragArea;
+      if (airSpeed > 1e-5) this._applyForce(V.mul(air, -drag), V.zero());
+      // Crosswind: the lateral air component pushes the body downwind through a
+      // centre of pressure behind the centre of gravity, which weathervanes the
+      // car into the wind (the same self-aligning behaviour as a real car).
+      const lateralAir = V.dot(air, right);
+      const sideForce = -q * (c.sideArea || 0) * lateralAir;
+      if (Math.abs(sideForce) > 1e-6) {
+        this._applyForce(V.mul(right, sideForce), V.mul(forward, -(c.aeroYawArm || 0)));
+      }
+      const downforce = 0.5 * c.airDensity * c.downforceArea * airSpeed * airSpeed;
+      if (downforce) this._applyForce(V.mul(up, -downforce), V.zero());
 
       // Airborne attitude control (legacy 1.x pitch/roll/yaw inputs). Torque is
       // proportional to the error between the requested rate and the current
@@ -3530,6 +3568,7 @@
         bodyStabilization: { ...c.body },
         gear: this.gear, rpm: this.engineRpm,
         speed, downforce,
+        airSpeed, crosswind: lateralAir, sideForce, wind: { x: wind.x || 0, y: wind.y || 0, z: wind.z || 0 },
         absActive: this.aidState.abs, tcsActive: this.aidState.tcs, escActive: this.aidState.esc,
         antiRoll: { front: c.antiRoll.front, rear: c.antiRoll.rear },
         loadTransfer: loadTransferTelemetry,
@@ -3767,7 +3806,7 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
     _legacyKeyString() {
       const c = this.config;
       return [
-        c.gravity, c.tireGrip, this.weather.wetness, c.fixedTimeStep, c.maxSubsteps,
+        c.gravity, c.tireGrip, this.weather.wetness, this.weather.snow, this.weather.temperature, c.fixedTimeStep, c.maxSubsteps,
         c.wheelbase, c.trackHalfWidth, c.maxSteerAngle, c.highSpeedSteerScale,
         c.brakeAcceleration, c.engineAcceleration, c.aerodynamicDrag, c.maxDownforce,
         c.maxSpeed, c.suspensionRestLength, c.suspensionReach, c.collisionRestitution,
@@ -3782,8 +3821,7 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
       this._legacyKey = key;
       const c = this.config, r = this.rigidBody, rc = r.c;
       const mass = 1250, wheelRadius = r.c.wheelRadius;
-      const wetGrip = c.tireGrip * (1 - 0.42 * this.weather.wetness);
-      rc.tire.mu = wetGrip;
+      rc.tire.mu = c.tireGrip * this._weatherGripFactor();
       rc.gravity = c.gravity;
       rc.fixedDt = c.fixedTimeStep;
       rc.maxSubsteps = c.maxSubsteps;
@@ -3881,11 +3919,28 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
       return out;
     }
 
+    /* Combined grip multiplier for the current weather: surface water, snow
+     * cover and tarmac temperature. Mirrors PlayCarWeather.gripFactor(). */
+    _weatherGripFactor() {
+      const w = this.weather || {};
+      const wet = Number.isFinite(w.wetness) ? w.wetness : 0;
+      const snow = Number.isFinite(w.snow) ? w.snow : 0;
+      const temp = Number.isFinite(w.temperature) ? w.temperature : 20;
+      const cold = 1 - Math.min(0.12, Math.max(0, 7 - temp) * 0.012);
+      const heat = 1 - Math.min(0.06, Math.max(0, temp - 32) * 0.004);
+      return (1 - 0.42 * wet) * (1 - 0.32 * snow) * cold * heat;
+    }
+
     setWeather(weather = {}) {
       const out = super.setWeather(weather);
       this._applyLegacyConfig();
       if (this.rigidBody) {
-        this.rigidBody.c.tire.mu = this.config.tireGrip * (1 - 0.42 * this.weather.wetness);
+        const r = this.rigidBody, w = this.weather;
+        r.c.wind = { x: w.wind.x, y: 0, z: w.wind.z };
+        r.c.airDensity = Number.isFinite(weather.airDensity)
+          ? Math.max(0.8, Math.min(1.5, weather.airDensity))
+          : 1.225 * (288.15 / (273.15 + w.temperature));
+        r.c.tire.mu = this.config.tireGrip * this._weatherGripFactor();
         this._legacyKey = this._legacyKeyString();
       }
       return out;
@@ -4083,6 +4138,536 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
   if (typeof module !== 'undefined' && module.exports) module.exports = LegacyAPI;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+/* PlayCar Weather System 1.0.0
+ *
+ * A deterministic, dependency-free weather model for the 3.0 physics stack.
+ * It owns the environment state (surface wetness, rain/snow intensity, fog,
+ * cloud cover, temperature, wind, lightning) and feeds the engine:
+ *
+ *   weather.setPreset('storm');            // smooth 6 s transition
+ *   weather.update(dt);                    // wetness soaks / dries over time
+ *   weather.applyTo(engine);               // engine.setWeather(...) + wind
+ *
+ * Physics coupling lives in the engine, not here:
+ *   - wetness scales the tire friction coefficient (1 - 0.42 * wetness),
+ *   - snow scales it further, cold/hot tarmac trims it slightly,
+ *   - wind changes the relative airspeed for drag/downforce and adds a
+ *     crosswind side force with a weathervaning yaw moment,
+ *   - temperature changes air density and therefore drag/downforce.
+ *
+ * The model is pure data + timers: no DOM, no Three.js, no Math.random unless
+ * you pass your own RNG. That keeps it testable in Node and reusable by both
+ * the 3D lab and the proving ground.
+ */
+(function (root) {
+  'use strict';
+
+  const VERSION = '1.0.0';
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const clamp01 = x => clamp(x, 0, 1);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const smoothstep = t => t * t * (3 - 2 * t);
+
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function random() {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* Presets. Angles are degrees the wind blows TOWARD, 0 = +Z, 90 = +X.
+   * `sun` scales the directional light, `exposure` the tone mapping, `sky` the
+   * background/fog colour. Wetness evolves toward the preset value at runtime. */
+  const PRESETS = {
+    clear: {
+      label: '晴朗', wetness: 0, rain: 0, snow: 0, fog: 0.06, cloud: 0.08,
+      temperature: 24, windSpeed: 1.5, windAngle: 210, lightning: 0,
+      sky: 0x0c1a2a, sun: 1, exposure: 1.05
+    },
+    overcast: {
+      label: '阴天', wetness: 0.18, rain: 0, snow: 0, fog: 0.2, cloud: 0.8,
+      temperature: 17, windSpeed: 4, windAngle: 190, lightning: 0,
+      sky: 0x1a2836, sun: 0.42, exposure: 0.98
+    },
+    rain: {
+      label: '小雨', wetness: 0.72, rain: 0.55, snow: 0, fog: 0.34, cloud: 0.92,
+      temperature: 14, windSpeed: 6, windAngle: 170, lightning: 0,
+      sky: 0x16212c, sun: 0.28, exposure: 0.92
+    },
+    storm: {
+      label: '暴雨', wetness: 1, rain: 1, snow: 0, fog: 0.55, cloud: 1,
+      temperature: 12, windSpeed: 14, windAngle: 150, lightning: 18,
+      sky: 0x0f1720, sun: 0.16, exposure: 0.84
+    },
+    fog: {
+      label: '浓雾', wetness: 0.5, rain: 0.12, snow: 0, fog: 0.95, cloud: 0.9,
+      temperature: 10, windSpeed: 2, windAngle: 240, lightning: 0,
+      sky: 0x2a3540, sun: 0.24, exposure: 0.96
+    },
+    snow: {
+      label: '降雪', wetness: 0.55, rain: 0, snow: 1, fog: 0.45, cloud: 0.95,
+      temperature: -3, windSpeed: 5, windAngle: 200, lightning: 0,
+      sky: 0x1b2635, sun: 0.32, exposure: 0.95
+    },
+    night: {
+      label: '夜晚', wetness: 0.2, rain: 0, snow: 0, fog: 0.28, cloud: 0.35,
+      temperature: 9, windSpeed: 3, windAngle: 200, lightning: 0,
+      sky: 0x050a12, sun: 0.05, exposure: 0.9
+    }
+  };
+
+  const NUMERIC = ['wetness', 'rain', 'snow', 'fog', 'cloud', 'temperature', 'windSpeed', 'windAngle', 'lightning', 'sun', 'exposure'];
+
+  function presetSnapshot(name) {
+    const preset = PRESETS[name];
+    if (!preset) throw new Error('PlayCarWeather: unknown preset "' + name + '"');
+    return { ...preset };
+  }
+
+  class WeatherSystem {
+    constructor(options = {}) {
+      this.presets = PRESETS;
+      this.seed = Number.isFinite(options.seed) ? (options.seed >>> 0) : 0x5eed1;
+      this.random = typeof options.random === 'function' ? options.random : mulberry32(this.seed);
+      const start = PRESETS[options.preset] ? options.preset : 'clear';
+      this.preset = start;
+      this.target = presetSnapshot(start);
+      this.state = {
+        ...presetSnapshot(start),
+        preset: start,
+        transition: 1,
+        flash: 0,
+        strikes: 0,
+        wind: { x: 0, z: 0 },
+        time: 0
+      };
+      this._boltTimer = 0;
+      this._recomputeWind();
+    }
+
+    getState() { return this.snapshot(); }
+
+    snapshot() {
+      return {
+        ...this.state,
+        wind: { ...this.state.wind }
+      };
+    }
+
+    listPresets() {
+      return Object.entries(PRESETS).map(([id, p]) => ({ id, label: p.label }));
+    }
+
+    /* Blend to a preset. duration = 0 / immediate applies instantly. */
+    setPreset(name, options = {}) {
+      if (!PRESETS[name]) throw new Error('PlayCarWeather: unknown preset "' + name + '"');
+      const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration) : 6;
+      this.preset = name;
+      this.state.preset = name;
+      this.target = presetSnapshot(name);
+      if (duration === 0 || options.immediate) {
+        for (const key of NUMERIC) this.state[key] = this.target[key];
+        this.state.sky = this.target.sky;
+        this.state.transition = 1;
+      } else {
+        this._from = {};
+        for (const key of NUMERIC) this._from[key] = this.state[key];
+        this._from.sky = this.state.sky;
+        this._duration = duration;
+        this._elapsed = 0;
+        this.state.transition = 0;
+      }
+      this._recomputeWind();
+      return this.snapshot();
+    }
+
+    /* Manual override (sliders, scripts, tests). Unknown keys are ignored. */
+    set(patch = {}) {
+      for (const key of NUMERIC) {
+        if (Number.isFinite(patch[key])) this.state[key] = patch[key];
+      }
+      if (Number.isFinite(patch.sky)) {
+        this.state.sky = patch.sky;
+        this.target.sky = patch.sky;
+        this._from = null;
+      }
+      if (Number.isFinite(patch.windSpeed) || Number.isFinite(patch.windAngle)) this._recomputeWind();
+      this.state.preset = patch.preset || this.preset;
+      return this.snapshot();
+    }
+
+    update(dt) {
+      const step = clamp(Number(dt) || 0, 0, 0.25);
+      if (!step) return this.snapshot();
+      this.state.time += step;
+
+      /* 1. preset transition: everything except wetness, which soaks/dries. */
+      if (this._from) {
+        this._elapsed += step;
+        const raw = this._duration > 0 ? clamp01(this._elapsed / this._duration) : 1;
+        const t = smoothstep(raw);
+        for (const key of NUMERIC) this.state[key] = lerp(this._from[key], this.target[key], t);
+        this.state.sky = mixHex(this._from.sky, this.target.sky, t);
+        this.state.transition = raw;
+        if (raw >= 1) {
+          this._from = null;
+          this.state.transition = 1;
+        }
+      } else {
+        // No transition: keep rain/snow/fog/wind/temperature glued to the preset
+        // target, but leave wetness to the surface model below.
+        for (const key of NUMERIC) {
+          if (key === 'wetness') continue;
+          this.state[key] = this.target[key];
+        }
+        this.state.sky = this.target.sky;
+        this.state.transition = 1;
+      }
+
+      /* 2. surface water: rain wets, dry weather evaporates. */
+      const targetWetness = this._from ? this.state.wetness : this.target.wetness;
+      const wetRate = 0.35 + 0.45 * this.state.rain + 0.1 * this.state.snow;
+      const dryRate = 0.045 + 0.02 * clamp01(this.state.temperature / 30) + 0.01 * this.state.windSpeed;
+      if (targetWetness > this.state.wetness) {
+        this.state.wetness = Math.min(targetWetness, this.state.wetness + wetRate * step);
+      } else {
+        this.state.wetness = Math.max(targetWetness, this.state.wetness - dryRate * step);
+      }
+      this.state.wetness = clamp01(this.state.wetness);
+
+      /* 3. wind vector (kept in m/s, x/z components). */
+      this._recomputeWind();
+
+      /* 4. deterministic lightning + flash decay. */
+      this.state.flash *= Math.exp(-step * 7);
+      if (this.state.lightning > 0) {
+        this._boltTimer -= step;
+        if (this._boltTimer <= 0) {
+          this.state.flash = 1;
+          this.state.strikes += 1;
+          const rate = Math.max(0.01, this.state.lightning / 60); // strikes per second
+          this._boltTimer = -Math.log(1 - this.random() * 0.999) / rate;
+        }
+      } else {
+        this._boltTimer = 0;
+      }
+      if (this.state.flash < 1e-4) this.state.flash = 0;
+      return this.snapshot();
+    }
+
+    _recomputeWind() {
+      const angle = (this.state.windAngle * Math.PI) / 180;
+      const speed = Math.max(0, this.state.windSpeed);
+      this.state.wind = { x: Math.sin(angle) * speed, z: Math.cos(angle) * speed };
+    }
+
+    windVector() { return { ...this.state.wind }; }
+
+    /* Effective tire grip multiplier for the current surface. Mirrors the
+     * engine mapping so tests can compare model and engine directly. */
+    gripFactor(baseGrip = 1) {
+      const cold = 1 - Math.min(0.12, Math.max(0, 7 - this.state.temperature) * 0.012);
+      const heat = 1 - Math.min(0.06, Math.max(0, this.state.temperature - 32) * 0.004);
+      return baseGrip * (1 - 0.42 * this.state.wetness) * (1 - 0.32 * this.state.snow) * cold * heat;
+    }
+
+    /* Air density at the current air temperature (sea level, ISA). */
+    airDensity() { return 1.225 * (288.15 / (273.15 + clamp(this.state.temperature, -40, 60))); }
+
+    /* Push the state into a unified 3.0 engine. Returns the applied weather. */
+    applyTo(engine) {
+      if (!engine || typeof engine.setWeather !== 'function') return this.snapshot();
+      const state = this.state;
+      engine.setWeather({
+        wetness: state.wetness,
+        wind: { ...state.wind },
+        rain: state.rain,
+        snow: state.snow,
+        fog: state.fog,
+        temperature: state.temperature,
+        airDensity: this.airDensity()
+      });
+      return this.snapshot();
+    }
+  }
+
+  function mixHex(a, b, t) {
+    const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+    const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+    return (Math.round(lerp(ar, br, t)) << 16) | (Math.round(lerp(ag, bg, t)) << 8) | Math.round(lerp(ab, bb, t));
+  }
+
+  const api = {
+    WeatherSystem,
+    PRESETS,
+    version: VERSION,
+    create(options) { return new WeatherSystem(options); }
+  };
+
+  root.PlayCarWeather = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* PlayCar Weather Visuals 1.0.0
+ *
+ * Three.js presentation layer for physics/weather-system.js. It does not own
+ * any physics: pass it the weather state each frame and it renders:
+ *
+ *   - rain / snow particles that follow the camera and slant with the wind,
+ *   - sky and fog colour/density, sun + hemisphere dimming, exposure,
+ *   - wet-surface roughness/metalness on the materials you hand it,
+ *   - deterministic lightning flashes (ambient light + sky flash).
+ *
+ * Usage:
+ *   const visuals = createPlayCarWeatherVisuals(THREE, scene, {
+ *     camera, sun, hemi, renderer, materials: [roadMaterial]
+ *   });
+ *   // each frame:
+ *   visuals.update(dt, weather.getState(), camera);
+ *
+ * The module is a classic script (no imports) so it can be concatenated into
+ * the single-file bundle and also loaded with a plain <script> tag by the
+ * standalone proving-ground page. In Node/headless it still builds real
+ * three.js objects; only WebGL rendering is stubbed by the smoke harness.
+ */
+(function (root) {
+  'use strict';
+
+  const VERSION = '1.0.0';
+  const clamp01 = x => Math.max(0, Math.min(1, Number(x) || 0));
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function random() {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function createPlayCarWeatherVisuals(THREE, scene, options = {}) {
+    if (!THREE || !scene) throw new Error('createPlayCarWeatherVisuals: THREE and scene are required');
+    const camera = options.camera || null;
+    const renderer = options.renderer || null;
+    const sun = options.sun || null;
+    const hemi = options.hemi || null;
+    const materials = Array.isArray(options.materials) ? options.materials.filter(Boolean) : [];
+    const seed = Number.isFinite(options.seed) ? options.seed : 0x9e3779b9;
+    const random = mulberry32(seed);
+
+    const baseSun = sun ? sun.intensity : 1;
+    const baseHemi = hemi ? hemi.intensity : 1;
+    const baseExposure = renderer && Number.isFinite(renderer.toneMappingExposure) ? renderer.toneMappingExposure : 1;
+    const baseMaterials = materials.map(material => ({
+      material,
+      roughness: Number.isFinite(material.roughness) ? material.roughness : 0.9,
+      metalness: Number.isFinite(material.metalness) ? material.metalness : 0,
+      color: material.color && material.color.isColor ? material.color.clone() : null
+    }));
+
+    // Keep a private fog so we never overwrite a scene that owns its own.
+    let fog = scene.fog;
+    if (!fog && THREE.Fog) {
+      fog = new THREE.Fog(0x0c1a2a, 160, 420);
+      scene.fog = fog;
+    }
+    const fogBase = fog ? { near: fog.near, far: fog.far } : { near: 160, far: 420 };
+    if (!scene.background || !scene.background.isColor) {
+      scene.background = new THREE.Color(0x0c1a2a);
+    }
+    const skyBase = scene.background.clone();
+
+    const flashLight = new THREE.AmbientLight(0xd7e6ff, 0);
+    flashLight.name = 'PlayCarWeatherFlash';
+    scene.add(flashLight);
+
+    const RAIN_COUNT = options.rainCount || 1200;
+    const SNOW_COUNT = options.snowCount || 700;
+    const BOX = { x: 70, y: 38, z: 70 };
+
+    function makeParticles(count, color, size, opacity) {
+      const positions = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        positions[i * 3] = (random() - 0.5) * BOX.x;
+        positions[i * 3 + 1] = random() * BOX.y;
+        positions[i * 3 + 2] = (random() - 0.5) * BOX.z;
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const material = new THREE.PointsMaterial({
+        color, size, sizeAttenuation: true, transparent: true, opacity,
+        depthWrite: false, fog: false
+      });
+      const points = new THREE.Points(geometry, material);
+      points.frustumCulled = false;
+      points.visible = false;
+      points.name = 'PlayCarWeatherParticles';
+      scene.add(points);
+      return { points, positions, count, material };
+    }
+
+    const rain = makeParticles(RAIN_COUNT, 0xa9d4ee, 0.085, 0.55);
+    const snow = makeParticles(SNOW_COUNT, 0xffffff, 0.17, 0.85);
+
+    const target = { wet: 0, rain: 0, snow: 0, fog: 0, sun: 1, flash: 0, sky: skyBase.getHex() };
+    const current = { wet: 0, rain: 0, snow: 0, fog: 0, sun: 1, flash: 0, sky: skyBase.getHex() };
+    const wind = { x: 0, z: 0 };
+    const tmpColor = new THREE.Color();
+    let disposed = false;
+
+    function normalize(state = {}) {
+      const wet = clamp01(state.wetness);
+      const rainAmount = state.rain === undefined ? wet : clamp01(state.rain);
+      const snowAmount = clamp01(state.snow);
+      const fogAmount = state.fog === undefined ? clamp01(wet * 0.6) : clamp01(state.fog);
+      const sunScale = state.sun === undefined ? 1 : Math.max(0, Math.min(2, state.sun));
+      return {
+        wet, rain: rainAmount, snow: snowAmount, fog: fogAmount,
+        sun: sunScale,
+        flash: clamp01(state.flash),
+        sky: Number.isFinite(state.sky) ? state.sky : null,
+        wind: state.wind || { x: 0, z: 0 }
+      };
+    }
+
+    function stepParticles(system, dt, fallSpeed, driftScale) {
+      const { positions, count } = system;
+      const cx = camera ? camera.position.x : (options.center ? options.center.x : 0);
+      const cy = camera ? camera.position.y : (options.center ? options.center.y : 0);
+      const cz = camera ? camera.position.z : (options.center ? options.center.z : 0);
+      const halfX = BOX.x / 2, halfZ = BOX.z / 2;
+      for (let i = 0; i < count; i++) {
+        const ix = i * 3;
+        positions[ix] += wind.x * driftScale * dt;
+        positions[ix + 1] -= fallSpeed * dt;
+        positions[ix + 2] += wind.z * driftScale * dt;
+        // Wrap around the camera so the field never empties.
+        if (positions[ix + 1] < -BOX.y * 0.5) {
+          positions[ix + 1] += BOX.y;
+          positions[ix] = cx + (random() - 0.5) * BOX.x;
+          positions[ix + 2] = cz + (random() - 0.5) * BOX.z;
+        }
+        if (positions[ix] - cx > halfX) positions[ix] -= BOX.x;
+        else if (positions[ix] - cx < -halfX) positions[ix] += BOX.x;
+        if (positions[ix + 2] - cz > halfZ) positions[ix + 2] -= BOX.z;
+        else if (positions[ix + 2] - cz < -halfZ) positions[ix + 2] += BOX.z;
+        if (positions[ix + 1] > cy + BOX.y * 0.6) positions[ix + 1] -= BOX.y;
+      }
+      system.points.geometry.attributes.position.needsUpdate = true;
+    }
+
+    function update(dt, state) {
+      if (disposed) return;
+      const step = Math.max(0, Math.min(0.25, Number(dt) || 0));
+      const input = normalize(state || {});
+      const k = Math.min(1, step * 2.2);
+      target.wet = input.wet; target.rain = input.rain; target.snow = input.snow;
+      target.fog = input.fog; target.sun = input.sun; target.flash = input.flash;
+      if (input.sky !== null) target.sky = input.sky;
+      wind.x = input.wind.x || 0;
+      wind.z = input.wind.z || 0;
+      for (const key of ['wet', 'rain', 'snow', 'fog', 'sun', 'flash']) current[key] += (target[key] - current[key]) * k;
+      current.sky = mixHex(current.sky, target.sky, k);
+
+      // Sky and fog.
+      skyBase.setHex(current.sky);
+      if (scene.background && scene.background.isColor) {
+        const flashBoost = current.flash * 0.55;
+        scene.background.copy(skyBase).lerp(tmpColor.setHex(0xdfe9ff), flashBoost);
+      }
+      if (fog && fog.color) {
+        fog.color.setHex(current.sky);
+        fog.near = lerp(fogBase.near, 14, current.fog);
+        fog.far = lerp(fogBase.far, 85, current.fog);
+      }
+
+      // Lights: dim with cloud cover/sun scale, flash with lightning.
+      if (sun) sun.intensity = baseSun * current.sun + current.flash * 1.4;
+      if (hemi) hemi.intensity = baseHemi * (0.35 + 0.65 * current.sun) + current.flash * 2.2;
+      flashLight.intensity = current.flash * 3.2;
+      if (renderer && Number.isFinite(renderer.toneMappingExposure)) {
+        renderer.toneMappingExposure = baseExposure * lerp(1, 0.92, current.wet) * (1 + current.flash * 0.25);
+      }
+
+      // Wet tarmac.
+      for (const entry of baseMaterials) {
+        const material = entry.material;
+        if (Number.isFinite(material.roughness)) {
+          material.roughness = lerp(entry.roughness, 0.18, current.wet);
+        }
+        if (Number.isFinite(material.metalness)) {
+          material.metalness = lerp(entry.metalness, 0.32, current.wet);
+        }
+        if (entry.color && material.color) {
+          material.color.copy(entry.color).multiplyScalar(1 - 0.12 * current.wet);
+        }
+      }
+
+      // Particles (they follow the camera captured at construction time).
+      rain.points.visible = current.rain > 0.02;
+      rain.material.opacity = 0.62 * current.rain;
+      snow.points.visible = current.snow > 0.02;
+      snow.material.opacity = 0.9 * current.snow;
+      if (camera && rain.points.visible) stepParticles(rain, step, 22, 0.85);
+      if (camera && snow.points.visible) stepParticles(snow, step, 1.9, 1.25);
+      return snapshot();
+    }
+
+    function mixHex(a, b, t) {
+      const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+      const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+      return (Math.round(lerp(ar, br, t)) << 16) | (Math.round(lerp(ag, bg, t)) << 8) | Math.round(lerp(ab, bb, t));
+    }
+
+    function snapshot() {
+      return {
+        wetness: current.wet, rain: current.rain, snow: current.snow, fog: current.fog,
+        sun: current.sun, flash: current.flash, sky: current.sky, wind: { ...wind }
+      };
+    }
+
+    function dispose() {
+      if (disposed) return;
+      disposed = true;
+      scene.remove(flashLight);
+      for (const system of [rain, snow]) {
+        scene.remove(system.points);
+        system.points.geometry.dispose();
+        system.material.dispose();
+      }
+      for (const entry of baseMaterials) {
+        if (Number.isFinite(entry.roughness)) entry.material.roughness = entry.roughness;
+        if (Number.isFinite(entry.metalness)) entry.material.metalness = entry.metalness;
+        if (entry.color && entry.material.color) entry.material.color.copy(entry.color);
+      }
+      if (sun) sun.intensity = baseSun;
+      if (hemi) hemi.intensity = baseHemi;
+      if (renderer && Number.isFinite(renderer.toneMappingExposure)) renderer.toneMappingExposure = baseExposure;
+    }
+
+    return {
+      version: VERSION,
+      update,
+      dispose,
+      snapshot,
+      setCamera(value) { camera = value; },
+      rain, snow, flashLight,
+      get state() { return snapshot(); }
+    };
+  }
+
+  root.createPlayCarWeatherVisuals = createPlayCarWeatherVisuals;
+  root.PlayCarWeatherVisuals = { create: createPlayCarWeatherVisuals, version: VERSION };
+  if (typeof module !== 'undefined' && module.exports) module.exports = { createPlayCarWeatherVisuals, version: VERSION };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 (async function startPlayCar3DScene(){
   let THREE;
   const sources = [
@@ -4130,7 +4715,8 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
     renderer.domElement.setAttribute('aria-label', '可交互三维赛车物理模拟场景');
     renderer.domElement.style.touchAction = 'none';
 
-    scene.add(new THREE.HemisphereLight(0xdceeff, 0x344455, 2.0));
+    const hemiLight = new THREE.HemisphereLight(0xdceeff, 0x344455, 2.0);
+    scene.add(hemiLight);
     const sun = new THREE.DirectionalLight(0xfff1d7, 3.1);
     sun.position.set(-55, 80, 35);
     sun.castShadow = true;
@@ -4609,6 +5195,23 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
       reset() { resetVehicle(); return vehicle.getSnapshot(); },
       snapshot() { return vehicle.getSnapshot(); }
     };
+    /* Weather visuals follow engine.weather: the control center's wetness/wind
+     * sliders and the preset menu both end up here through setWeather(). */
+    const weatherVisuals = (typeof createPlayCarWeatherVisuals === 'function')
+      ? (() => {
+          try {
+            return createPlayCarWeatherVisuals(THREE, scene, {
+              camera, renderer, sun, hemi: hemiLight,
+              materials: [mats.road, mats.ground, mats.line, mats.wall]
+            });
+          } catch (error) {
+            console.warn('PlayCar weather visuals unavailable:', error && error.message);
+            return null;
+          }
+        })()
+      : null;
+    runtime.weatherVisuals = weatherVisuals;
+
     window.PlayCarRuntime = runtime;
     window.dispatchEvent(new CustomEvent('playcar:ready', { detail: { version: EngineAPI.version } }));
 
@@ -4653,6 +5256,20 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
         roll: Number(input.roll) || 0,
         yaw: Number(input.yaw) || 0
       });
+
+      if (weatherVisuals) {
+        const w = vehicle.weather || {};
+        const wet = Number.isFinite(w.wetness) ? w.wetness : 0;
+        const snow = Number.isFinite(w.snow) ? w.snow : 0;
+        weatherVisuals.update(dt, {
+          wetness: wet,
+          rain: Number.isFinite(w.rain) ? w.rain : wet,
+          snow,
+          fog: Number.isFinite(w.fog) ? w.fog : wet * 0.5,
+          wind: w.wind || { x: 0, z: 0 },
+          sun: Math.max(0.35, 1 - 0.45 * wet - 0.35 * snow)
+        });
+      }
 
       const pose = rigid.interpolatedState();
       const wheelState = vehicle.getWheelState();

@@ -158,6 +158,11 @@
     airDensity: 1.225,
     downforceArea: 0.0,
     downforceFront: 0.45,
+    // Weather / environment. `wind` is the air velocity in world space (m/s);
+    // drag, downforce and the crosswind side force all use relative airspeed.
+    wind: { x: 0, y: 0, z: 0 },
+    sideArea: 1.15,
+    aeroYawArm: 0.35,
     restitution: 0.08,
     collisionFriction: 0.55,
     bodyHalf: { x: 0.88, y: 0.48, z: 2.05 },
@@ -939,14 +944,31 @@
         }
       }
 
-      /* 3. aerodynamics. */
+      /* 3. aerodynamics, relative to the wind. */
       const forward = Q.rotate(s.orientation, { x: 0, y: 0, z: -1 });
       const right = Q.rotate(s.orientation, { x: 1, y: 0, z: 0 });
+      const up = Q.rotate(s.orientation, { x: 0, y: 1, z: 0 });
+      const wind = c.wind || { x: 0, y: 0, z: 0 };
+      const air = {
+        x: s.velocity.x - (wind.x || 0),
+        y: s.velocity.y - (wind.y || 0),
+        z: s.velocity.z - (wind.z || 0)
+      };
+      const airSpeed = V.len(air);
       const speed = V.len(s.velocity);
-      const drag = 0.5 * c.airDensity * c.dragArea * speed * speed;
-      if (speed > 1e-5) this._applyForce(V.mul(s.velocity, -drag / speed), V.zero());
-      const downforce = 0.5 * c.airDensity * c.downforceArea * speed * speed;
-      if (downforce) this._applyForce(V.mul(Q.rotate(s.orientation, { x: 0, y: -1, z: 0 }), downforce), V.zero());
+      const q = 0.5 * c.airDensity * airSpeed;
+      const drag = q * c.dragArea;
+      if (airSpeed > 1e-5) this._applyForce(V.mul(air, -drag), V.zero());
+      // Crosswind: the lateral air component pushes the body downwind through a
+      // centre of pressure behind the centre of gravity, which weathervanes the
+      // car into the wind (the same self-aligning behaviour as a real car).
+      const lateralAir = V.dot(air, right);
+      const sideForce = -q * (c.sideArea || 0) * lateralAir;
+      if (Math.abs(sideForce) > 1e-6) {
+        this._applyForce(V.mul(right, sideForce), V.mul(forward, -(c.aeroYawArm || 0)));
+      }
+      const downforce = 0.5 * c.airDensity * c.downforceArea * airSpeed * airSpeed;
+      if (downforce) this._applyForce(V.mul(up, -downforce), V.zero());
 
       // Airborne attitude control (legacy 1.x pitch/roll/yaw inputs). Torque is
       // proportional to the error between the requested rate and the current
@@ -1154,6 +1176,7 @@
         bodyStabilization: { ...c.body },
         gear: this.gear, rpm: this.engineRpm,
         speed, downforce,
+        airSpeed, crosswind: lateralAir, sideForce, wind: { x: wind.x || 0, y: wind.y || 0, z: wind.z || 0 },
         absActive: this.aidState.abs, tcsActive: this.aidState.tcs, escActive: this.aidState.esc,
         antiRoll: { front: c.antiRoll.front, rear: c.antiRoll.rear },
         loadTransfer: loadTransferTelemetry,

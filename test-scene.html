@@ -15,6 +15,7 @@ main{max-width:1460px;margin:auto;display:grid;grid-template-columns:minmax(0,1f
 .checks-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}.summary{display:flex;align-items:baseline;gap:10px;margin:12px 0 8px;font-variant-numeric:tabular-nums}.summary b{font-size:30px;line-height:1}.ok{color:var(--green)}.bad{color:var(--red)}
 #check-list{display:flex;flex-direction:column;gap:6px;max-height:520px;overflow:auto;padding-right:3px}
 .check{background:var(--panel2);border:1px solid #1d334a;border-radius:10px;padding:8px 10px;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:start}.check .mark{font-weight:900;color:var(--green)}.check.bad{border-color:#5c2b3a}.check.bad .mark{color:var(--red)}.check .name{font-size:12px;font-weight:700}.check .note{color:var(--muted);font-size:10px}.check .detail{grid-column:2/4;color:#b9cee0;font:10px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}.check .ms{color:var(--muted);font-size:10px;white-space:nowrap}
+.weather-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}.weather-label{font-size:11px;color:var(--muted);letter-spacing:1px}.wbtn{min-height:34px;padding:6px 10px;font-size:12px;border-radius:999px}.wbtn.active{background:var(--cyan);color:#07111f;border-color:var(--cyan);font-weight:800}#weather-info{font-size:11px;margin-left:auto}
 .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #29425c;border-radius:999px;padding:4px 9px;font-size:11px;color:#c9d8e8}.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
 footer{max-width:1460px;margin:16px auto 0;color:#71879e;font-size:11px}
 @media(max-width:980px){main{grid-template-columns:1fr}#check-list{max-height:none}}
@@ -25,7 +26,7 @@ footer{max-width:1460px;margin:16px auto 0;color:#71879e;font-size:11px}
  <div>
   <div class="eyebrow">PLAYCAR / PHYSICS PROVING GROUND</div>
   <h1>物理测试场</h1>
-  <p class="sub">摩擦车道 · 坡度 · 搓板路 · 跳台 · 实心墙 · 动态道具 · 10 项确定性自检</p>
+  <p class="sub">摩擦车道 · 坡度 · 搓板路 · 跳台 · 实心墙 · 动态道具 · 天气 · 11 项确定性自检</p>
  </div>
  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
   <span class="status" id="runtime-status">正在初始化引擎…</span>
@@ -50,6 +51,17 @@ footer{max-width:1460px;margin:16px auto 0;color:#71879e;font-size:11px}
   <div class="actions">
    <button class="primary" id="scene-reset">重置车辆</button>
    <button id="scene-follow">跟随视角：开</button>
+  </div>
+  <div class="weather-row" role="group" aria-label="天气预设">
+   <span class="weather-label">天气</span>
+   <button class="wbtn active" data-weather="clear">晴朗</button>
+   <button class="wbtn" data-weather="overcast">阴天</button>
+   <button class="wbtn" data-weather="rain">小雨</button>
+   <button class="wbtn" data-weather="storm">暴雨</button>
+   <button class="wbtn" data-weather="fog">浓雾</button>
+   <button class="wbtn" data-weather="snow">降雪</button>
+   <button class="wbtn" data-weather="night">夜晚</button>
+   <span class="muted" id="weather-info">晴朗 · 0% 湿 · 24°C</span>
   </div>
   <div class="stats">
    <div class="stat"><small>速度</small><strong id="stat-speed">0</strong></div>
@@ -88,7 +100,9 @@ footer{max-width:1460px;margin:16px auto 0;color:#71879e;font-size:11px}
 <script src="./physics/rigidbody-vehicle-engine.js?v=3.0.0"></script>
 <script src="./physics/playcar-physics-engine.js?v=3.0.0"></script>
 <script src="./physics/playcar-unified.js?v=3.0.0"></script>
-<script src="./physics/physics-checks.js?v=1.0.0"></script>
+<script src="./physics/weather-system.js?v=1.0.0"></script>
+<script src="./physics/weather-visuals.js?v=1.0.0"></script>
+<script src="./physics/physics-checks.js?v=1.1.0"></script>
 <script>
 (() => {
   'use strict';
@@ -170,6 +184,27 @@ footer{max-width:1460px;margin:16px auto 0;color:#71879e;font-size:11px}
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1500);
   });
+
+  const weatherButtons = Array.from(document.querySelectorAll('[data-weather]'));
+  function syncWeather(state) {
+    if (!state && window.PlayCarRuntime && typeof window.PlayCarRuntime.weather === 'function') {
+      state = window.PlayCarRuntime.weather();
+    }
+    if (!state) return;
+    for (const button of weatherButtons) {
+      button.classList.toggle('active', button.dataset.weather === state.preset);
+    }
+    $('weather-info').textContent =
+      `${state.label} · ${Math.round(state.wetness * 100)}% 湿 · ${Math.round(state.temperature)}°C · 风 ${state.windSpeed.toFixed(0)} m/s`;
+  }
+  for (const button of weatherButtons) {
+    button.addEventListener('click', () => {
+      if (!window.PlayCarRuntime || typeof window.PlayCarRuntime.setWeatherPreset !== 'function') return;
+      window.PlayCarRuntime.setWeatherPreset(button.dataset.weather);
+    });
+  }
+  window.addEventListener('playcar:weather', event => syncWeather(event.detail));
+  setInterval(() => syncWeather(null), 500);
 
   window.addEventListener('playcar:ready', event => {
     const scene = event.detail && event.detail.scene;

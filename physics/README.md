@@ -15,7 +15,9 @@ physics/playcar-unified.js           3.0 runtime + 1.8-compatible facade
 physics/playcar-physics-engine.js    legacy kinematic engine (compatibility only)
 physics/scene3d.js                   Three.js driving lab (ES module)
 physics/test-scene.js                Three.js proving ground (ES module)
-physics/physics-checks.js            10 deterministic validation scenarios (browser + Node)
+physics/weather-system.js            weather model: presets, wetness, wind, lightning
+physics/weather-visuals.js           rain/snow/fog/lightning Three.js presentation
+physics/physics-checks.js            11 deterministic validation scenarios (browser + Node)
 physics/playcar-physics-all-in-one.js generated bundle (do not edit)
 tools/build-bundle.js                bundle generator + syntax gate
 tools/benchmark.js                   fixed-step throughput benchmark
@@ -182,14 +184,52 @@ stack rather than admiring a lap:
 - kinematic dummy props (cones and crates) driven by `vehicle.addProp(...)`, so
   impacts go through the real contact solver;
 - chase camera, live HUD (speed, gear, wheel/chassis contacts, per-contact μ,
-  physics ms) and touch/keyboard driving.
+  physics ms) and touch/keyboard driving;
+- a full weather system: seven presets (clear, overcast, rain, storm, fog, snow,
+  night) with smooth transitions, rain/snow particles, fog, lightning and a wet
+  track that soaks and dries over time.
 
 The right-hand panel runs `physics/physics-checks.js` — the same module the Node
-suite executes. It builds ten isolated worlds (rest + sleep, 120 m/s CCD wall,
+suite executes. It builds eleven isolated worlds (rest + sleep, 120 m/s CCD wall,
 slope friction, triangle friction/raycast, ride height, dry/wet/ice braking, ramp
 jump, prop impact, differential layout, determinism) and shows PASS/FAIL with the
 measured detail values, total ms and engine version. Results can be exported as
 JSON. The suite runs automatically once on load and can be re-run at any time.
+
+## Weather and environment
+
+`physics/weather-system.js` (`window.PlayCarWeather`) owns the environment:
+surface wetness, rain/snow intensity, fog, cloud cover, temperature, wind speed
+and direction, and deterministic lightning. It is pure data and timers — no DOM,
+no Three.js, no `Math.random` unless you inject an RNG.
+
+```js
+const weather = PlayCarWeather.create({ preset: 'clear' });
+weather.setPreset('storm', { duration: 6 }); // smooth transition
+for (const step of steps) {
+  weather.update(dt);        // rain soaks the track, dry air dries it
+  weather.applyTo(engine);   // engine.setWeather({wetness, wind, snow, temperature, ...})
+}
+weather.gripFactor(1);       // effective μ multiplier (matches the engine)
+weather.airDensity();        // from the air temperature
+```
+
+Physics coupling:
+
+- wetness scales tire μ by `1 - 0.42 · wetness`, snow by `1 - 0.32 · snow`,
+  cold (< 7 °C) up to `-12 %`, hot (> 32 °C) up to `-6 %`;
+- wind is the **air velocity**: drag and downforce use the relative airspeed
+  `v - wind`, and the lateral air component applies a side force through a centre
+  of pressure behind the CG, so the car weathervanes into the wind;
+- temperature changes air density (`1.225 · 288.15 / (273.15 + T)`), which scales
+  drag and downforce.
+
+`physics/weather-visuals.js` turns the state into Three.js: rain/snow particles
+that follow the camera and slant with the wind, sky/fog colour and density, sun
+and hemisphere dimming, exposure, wet asphalt roughness/metalness and lightning
+flashes. Both scenes use it; the proving ground exposes the presets as buttons
+(and `[` / `]`), the lab as a preset menu next to the existing wind/wetness
+sliders.
 
 ## Compatibility
 

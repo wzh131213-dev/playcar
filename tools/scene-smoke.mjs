@@ -9,6 +9,7 @@
  * Run: node tools/scene-smoke.mjs
  *      PLAYCAR_SCENE=physics/test-scene.js PLAYCAR_START_Z=88 node tools/scene-smoke.mjs
  *      PLAYCAR_FRAMES=1200 ...   # longer stress drive
+ *      PLAYCAR_WEATHER=storm ... # boot a weather preset before driving
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,6 +20,7 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const sceneFile = process.env.PLAYCAR_SCENE || 'physics/scene3d.js';
 const spawnZ = Number.isFinite(Number(process.env.PLAYCAR_START_Z)) ? Number(process.env.PLAYCAR_START_Z) : 34;
 const frames = Number.isFinite(Number(process.env.PLAYCAR_FRAMES)) ? Math.max(1, Number(process.env.PLAYCAR_FRAMES)) : 300;
+const weatherPreset = process.env.PLAYCAR_WEATHER || '';
 
 class FakeElement {
   constructor(tag = 'div', id = '') {
@@ -164,6 +166,33 @@ if (!runtime.engine.rigidBody) {
   process.exit(1);
 }
 
+// Optional weather boot: the proving ground owns a PlayCarWeather model, the
+// lab receives the same preset through runtime.setWeather().
+let weatherApplied = null;
+if (weatherPreset) {
+  if (typeof runtime.setWeatherPreset === 'function') {
+    weatherApplied = runtime.setWeatherPreset(weatherPreset, { immediate: true, silent: true });
+  } else {
+    const WeatherAPI = globalThis.PlayCarWeather || win.PlayCarWeather;
+    if (!WeatherAPI) {
+      console.error('WEATHER PRESET REQUESTED BUT PlayCarWeather IS MISSING');
+      process.exit(1);
+    }
+    const model = new WeatherAPI.WeatherSystem({ preset: weatherPreset });
+    model.setPreset(weatherPreset, { immediate: true });
+    const state = model.update(0.1);
+    runtime.setWeather({
+      wetness: state.wetness, wind: state.wind,
+      rain: state.rain, snow: state.snow, fog: state.fog, temperature: state.temperature
+    });
+    weatherApplied = state;
+  }
+  if (!weatherApplied) {
+    console.error('WEATHER PRESET WAS NOT APPLIED:', weatherPreset);
+    process.exit(1);
+  }
+}
+
 // Drive forward for the requested number of 60 Hz frames (300 = ~5 s).
 runtime.setInput({ gas: true, steer: 0, brake: false, handbrake: false });
 for (let i = 0; i < frames; i++) {
@@ -211,9 +240,13 @@ if (sceneHost.children.length === 0) {
   console.error('SCENE HOST EMPTY'); process.exit(1);
 }
 
+const engineSnapshot = runtime.snapshot();
 console.log('RESULT ' + JSON.stringify({
   ok: true,
   scene: sceneFile,
+  weather: weatherPreset || null,
+  wetness: engineSnapshot.weather ? +(engineSnapshot.weather.wetness || 0).toFixed(3) : null,
+  visuals: !!(runtime.weatherVisuals),
   version: win.PlayCarPhysicsEngine.version,
   solver: snap.solver,
   frames,

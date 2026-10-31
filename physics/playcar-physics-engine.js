@@ -255,7 +255,19 @@
     }
     setWeather(weather={}){
       const wind=weather.wind||{};
-      this.weather={wind:{x:Number.isFinite(wind.x)?V.clamp(wind.x,-20,20):0,z:Number.isFinite(wind.z)?V.clamp(wind.z,-20,20):0},wetness:Number.isFinite(weather.wetness)?V.clamp(weather.wetness,0,1):0};
+      const prev=this.weather||{};
+      const num=(value,fallback,min,max)=>{
+        const n=Number(value);
+        return Number.isFinite(n)?V.clamp(n,min,max):fallback;
+      };
+      this.weather={
+        wind:{x:num(wind.x,0,-20,20),z:num(wind.z,0,-20,20)},
+        wetness:num(weather.wetness,0,0,1),
+        rain:num(weather.rain,prev.rain||0,0,1),
+        snow:num(weather.snow,prev.snow||0,0,1),
+        fog:num(weather.fog,prev.fog||0,0,1),
+        temperature:num(weather.temperature,Number.isFinite(prev.temperature)?prev.temperature:20,-40,60)
+      };
       return {...this.weather,wind:{...this.weather.wind}};
     }
     _normalizeInput(input={}){
@@ -319,7 +331,10 @@
     }
     getSnapshot(){
       return {version:'1.8.0',preset:this.preset,config:{...this.config,bodyHalfExtents:{...this.config.bodyHalfExtents}},
-        weather:{wind:{...this.weather.wind},wetness:this.weather.wetness},input:{...this.lastInput},
+        weather:{wind:{...this.weather.wind},wetness:this.weather.wetness,
+          rain:this.weather.rain||0,snow:this.weather.snow||0,fog:this.weather.fog||0,
+          temperature:Number.isFinite(this.weather.temperature)?this.weather.temperature:20},
+        input:{...this.lastInput},
         state:this.getState(),telemetry:this.getTelemetry(),debug:this.debugSnapshot(),
         timing:{accumulator:this.accumulator,droppedTime:this.droppedTime,lastStepMs:this.lastStepMs,totalStepMs:this.totalStepMs},
         checkpoints:this.checkpoints.map(c=>({...c,position:{...c.position},forward:{...c.forward}})),

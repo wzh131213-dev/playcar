@@ -155,7 +155,7 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
     _legacyKeyString() {
       const c = this.config;
       return [
-        c.gravity, c.tireGrip, this.weather.wetness, c.fixedTimeStep, c.maxSubsteps,
+        c.gravity, c.tireGrip, this.weather.wetness, this.weather.snow, this.weather.temperature, c.fixedTimeStep, c.maxSubsteps,
         c.wheelbase, c.trackHalfWidth, c.maxSteerAngle, c.highSpeedSteerScale,
         c.brakeAcceleration, c.engineAcceleration, c.aerodynamicDrag, c.maxDownforce,
         c.maxSpeed, c.suspensionRestLength, c.suspensionReach, c.collisionRestitution,
@@ -170,8 +170,7 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
       this._legacyKey = key;
       const c = this.config, r = this.rigidBody, rc = r.c;
       const mass = 1250, wheelRadius = r.c.wheelRadius;
-      const wetGrip = c.tireGrip * (1 - 0.42 * this.weather.wetness);
-      rc.tire.mu = wetGrip;
+      rc.tire.mu = c.tireGrip * this._weatherGripFactor();
       rc.gravity = c.gravity;
       rc.fixedDt = c.fixedTimeStep;
       rc.maxSubsteps = c.maxSubsteps;
@@ -269,11 +268,28 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
       return out;
     }
 
+    /* Combined grip multiplier for the current weather: surface water, snow
+     * cover and tarmac temperature. Mirrors PlayCarWeather.gripFactor(). */
+    _weatherGripFactor() {
+      const w = this.weather || {};
+      const wet = Number.isFinite(w.wetness) ? w.wetness : 0;
+      const snow = Number.isFinite(w.snow) ? w.snow : 0;
+      const temp = Number.isFinite(w.temperature) ? w.temperature : 20;
+      const cold = 1 - Math.min(0.12, Math.max(0, 7 - temp) * 0.012);
+      const heat = 1 - Math.min(0.06, Math.max(0, temp - 32) * 0.004);
+      return (1 - 0.42 * wet) * (1 - 0.32 * snow) * cold * heat;
+    }
+
     setWeather(weather = {}) {
       const out = super.setWeather(weather);
       this._applyLegacyConfig();
       if (this.rigidBody) {
-        this.rigidBody.c.tire.mu = this.config.tireGrip * (1 - 0.42 * this.weather.wetness);
+        const r = this.rigidBody, w = this.weather;
+        r.c.wind = { x: w.wind.x, y: 0, z: w.wind.z };
+        r.c.airDensity = Number.isFinite(weather.airDensity)
+          ? Math.max(0.8, Math.min(1.5, weather.airDensity))
+          : 1.225 * (288.15 / (273.15 + w.temperature));
+        r.c.tire.mu = this.config.tireGrip * this._weatherGripFactor();
         this._legacyKey = this._legacyKeyString();
       }
       return out;
