@@ -815,7 +815,7 @@ class RigidBodyVehicle{
   if(V.len(forward)<1e-8)forward=V.norm(V.cross({x:1,y:0,z:0},n));
   const right0=V.norm(V.cross(forward,n)),angle=steer+toeDeg*Math.PI/180;
   const caster=V.clamp(Number(g.casterDeg)||0,-25,25)*Math.PI/180,kpi=V.clamp(Number(g.kingpinInclinationDeg)||0,0,30)*Math.PI/180;
-  const steeringAxis=V.norm(V.add(V.mul(n,Math.cos(kpi)*Math.cos(caster)),V.add(V.mul(right0,-side*Math.sin(kpi)*Math.cos(caster)),V.mul(forward,-Math.sin(caster)))));
+  const steeringAxis=V.mul(V.norm(V.add(V.mul(n,Math.cos(kpi)*Math.cos(caster)),V.add(V.mul(right0,-side*Math.sin(kpi)*Math.cos(caster)),V.mul(forward,-Math.sin(caster))))),-1);
   forward=V.norm(V.sub(rotateVectorAroundAxis(forward,steeringAxis,angle),V.mul(n,V.dot(rotateVectorAroundAxis(forward,steeringAxis,angle),n))));
   const right=V.norm(V.cross(forward,n));
   const scrubRadius=Math.max(0,Number(g.scrubRadius)||0),mechanicalTrail=Math.max(0,Number(g.mechanicalTrail)||0);
