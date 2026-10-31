@@ -176,6 +176,11 @@ All three are configurable and exposed in telemetry.
 - Hardpoint suspension geometry solves camber/toe migration, instant centre,
   roll-centre height, caster, KPI, scrub radius, mechanical trail and jacking height.
   Disable with `suspensionGeometry.front.hardpoints.enabled = false`.
+- Airborne control: while no wheel is in contact, `pitch`, `roll` and `yaw` inputs
+  (from `advance(dt, {pitch, roll, yaw})`) drive a proportional–derivative torque
+  toward `input · airControl.*Rate`. Damping is built into the error term, so the
+  body does not spin up. Active pitch/roll input disables the passive levelling
+  spring; releasing it restores the spring.
 
 ## 4. Public API
 

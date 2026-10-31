@@ -121,6 +121,9 @@ for (let i = 0; i < 600; i++) world.fixedStep(1 / 120);
   mechanical trail, jacking, roll-centre migration, and anti-dive/anti-squat.
 - Aero: quadratic drag and downforce; chassis roll/pitch stabilisation springs for
   a planted simcade feel without arcade auto-alignment.
+- Airborne attitude control: pitch/roll/yaw inputs drive a rate-limited PD torque
+  while no wheel is in contact, so ramp jumps can be rotated; passive levelling
+  resumes when the driver releases the inputs.
 - Props: `addProp({ shape, halfExtents, radius, mass, position, friction,
   restitution })` inserts dynamic crates/cones into the same world, so the car can
   knock them around and the props collide with each other.

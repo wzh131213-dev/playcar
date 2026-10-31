@@ -111,6 +111,10 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
           progressive: 0.35,
           bump: 90000
         },
+        airControl: {
+          yawRate: c.airYawRate, pitchRate: c.airPitchRate, rollRate: c.airRollRate,
+          yawGain: 2200, pitchGain: 3000, rollGain: 3000
+        },
         antiRoll: { front: 8500, rear: 6500 },
         differential: { type: 'lsd', layout: 'rwd', limitedSlip: 2.2 },
         aids: { abs: true, tcs: true, esc: false, absSlip: 0.18, tcsSlip: 0.22 },
@@ -175,6 +179,11 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
       rc.track = c.trackHalfWidth * 2;
       rc.steering.maxAngle = c.maxSteerAngle;
       rc.steering.highSpeedScale = c.highSpeedSteerScale;
+      if (rc.airControl) {
+        rc.airControl.yawRate = c.airYawRate;
+        rc.airControl.pitchRate = c.airPitchRate;
+        rc.airControl.rollRate = c.airRollRate;
+      }
       rc.brakeTorque = c.brakeAcceleration * mass * wheelRadius / 4;
       rc.handbrakeTorque = rc.brakeTorque * 1.55;
       rc.engine.peakTorque = c.engineAcceleration * mass * wheelRadius / (3.2 * 3.9 * 0.88);
@@ -334,7 +343,10 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
         throttle: normalized.throttle,
         brake: normalized.brake,
         steer: normalized.steer,
-        handbrake: normalized.handbrake
+        handbrake: normalized.handbrake,
+        pitch: normalized.pitch,
+        roll: normalized.roll,
+        yaw: normalized.yaw
       });
       this._syncRigidToLegacy();
       this.lastStepMs = nowMs() - started;

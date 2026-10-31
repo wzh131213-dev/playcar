@@ -546,7 +546,10 @@ function render() {
     throttle: level(input.gas),
     brake: level(input.brake),
     steer,
-    handbrake: level(input.handbrake)
+    handbrake: level(input.handbrake),
+    pitch: Number(input.pitch) || 0,
+    roll: Number(input.roll) || 0,
+    yaw: Number(input.yaw) || 0
   });
 
   const pose = rigid.interpolatedState();

@@ -189,3 +189,24 @@ test('rigid engine configuration is tunable at runtime without breaking the step
   engine.advance(1 / 120, { throttle: 1, steer: 0.3 });
   assert.ok(Number.isFinite(engine.state.position.y));
 });
+
+test('airborne pitch, roll and yaw inputs rotate the chassis without spinning up', () => {
+  const engine = new Vehicle.RigidBodyVehicle({
+    surfaceMesh: null, groundPlaneY: -100, position: { x: 0, y: 5, z: 0 }
+  });
+  for (let i = 0; i < 120; i++) engine.advance(1 / 120, { pitch: 1 });
+  const pitchRate = engine.state.angularVelocity.x;
+  const tilt = engine.telemetry.bodyTilt;
+  assert.ok(Math.abs(pitchRate) > 0.1, `pitch rate ${pitchRate}`);
+  assert.ok(Math.abs(tilt.pitch) > 0.02, `pitch angle ${tilt.pitch}`);
+
+  const yawEngine = new Vehicle.RigidBodyVehicle({
+    surfaceMesh: null, groundPlaneY: -100, position: { x: 0, y: 5, z: 0 }
+  });
+  for (let i = 0; i < 120; i++) yawEngine.advance(1 / 120, { yaw: 1 });
+  assert.ok(yawEngine.state.angularVelocity.y > 0.1, `yaw rate ${yawEngine.state.angularVelocity.y}`);
+
+  // Releasing the input must damp the rate instead of leaving it spinning.
+  for (let i = 0; i < 240; i++) yawEngine.advance(1 / 120, {});
+  assert.ok(Math.abs(yawEngine.state.angularVelocity.y) < 0.05, 'yaw should damp out');
+});

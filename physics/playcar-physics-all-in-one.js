@@ -2519,6 +2519,10 @@
       revLimiter: 6650,
       torqueCurve: null
     },
+    airControl: {
+      yawRate: 0.9, pitchRate: 0.8, rollRate: 1.0,
+      yawGain: 2200, pitchGain: 3000, rollGain: 3000
+    },
     antiRoll: { front: 8500, rear: 6500 },
     body: { rollStiffness: 9000, rollDamping: 2200, pitchStiffness: 14000, pitchDamping: 2800 },
     differential: { type: 'open', limitedSlip: 2.2, preload: 0, ramp: 0 },
@@ -3115,7 +3119,11 @@
       };
     }
 
-    _applyBodyStabilization() {
+    _applyBodyStabilization(input = {}) {
+      // On the ground the spring keeps the body planted. In the air it only
+      // levels the car passively; active pitch/roll input disables it so flips
+      // and aerials stay possible.
+      if (!this.state.grounded && ((Number(input.pitch) || 0) !== 0 || (Number(input.roll) || 0) !== 0)) return;
       const b = this.c.body || {}, tilt = this._bodyTilt();
       const localTorque = {
         x: -Math.max(0, b.pitchStiffness || 0) * tilt.pitch - Math.max(0, b.pitchDamping || 0) * tilt.pitchRate,
@@ -3312,6 +3320,20 @@
       const downforce = 0.5 * c.airDensity * c.downforceArea * speed * speed;
       if (downforce) this._applyForce(V.mul(Q.rotate(s.orientation, { x: 0, y: -1, z: 0 }), downforce), V.zero());
 
+      // Airborne attitude control (legacy 1.x pitch/roll/yaw inputs). Torque is
+      // proportional to the error between the requested rate and the current
+      // body rate, so there is no unbounded spin-up. Ground contact disables it.
+      if (!contacts.length && c.airControl) {
+        const air = c.airControl;
+        const avLocal = Q.rotateInverse(s.orientation, s.angularVelocity);
+        const torqueLocal = {
+          x: ((input.pitch || 0) * air.pitchRate - avLocal.x) * air.pitchGain,
+          y: ((input.yaw || 0) * air.yawRate - avLocal.y) * air.yawGain,
+          z: ((input.roll || 0) * air.rollRate - avLocal.z) * air.rollGain
+        };
+        this._applyTorque(Q.rotate(s.orientation, torqueLocal));
+      }
+
       /* 4. drivetrain. */
       this._layout = this._layout || this._drivetrainLayout();
       const drivetrain = this._updateDrivetrain(dt, input, s.wheelOmega);
@@ -3465,7 +3487,7 @@
       }
 
       /* 9. chassis attitude stabilization and rigid-body integration. */
-      this._applyBodyStabilization();
+      this._applyBodyStabilization(input);
       this.world.fixedStep(dt);
       this._syncStateFromBody();
 
@@ -3697,6 +3719,10 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
           progressive: 0.35,
           bump: 90000
         },
+        airControl: {
+          yawRate: c.airYawRate, pitchRate: c.airPitchRate, rollRate: c.airRollRate,
+          yawGain: 2200, pitchGain: 3000, rollGain: 3000
+        },
         antiRoll: { front: 8500, rear: 6500 },
         differential: { type: 'lsd', layout: 'rwd', limitedSlip: 2.2 },
         aids: { abs: true, tcs: true, esc: false, absSlip: 0.18, tcsSlip: 0.22 },
@@ -3761,6 +3787,11 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
       rc.track = c.trackHalfWidth * 2;
       rc.steering.maxAngle = c.maxSteerAngle;
       rc.steering.highSpeedScale = c.highSpeedSteerScale;
+      if (rc.airControl) {
+        rc.airControl.yawRate = c.airYawRate;
+        rc.airControl.pitchRate = c.airPitchRate;
+        rc.airControl.rollRate = c.airRollRate;
+      }
       rc.brakeTorque = c.brakeAcceleration * mass * wheelRadius / 4;
       rc.handbrakeTorque = rc.brakeTorque * 1.55;
       rc.engine.peakTorque = c.engineAcceleration * mass * wheelRadius / (3.2 * 3.9 * 0.88);
@@ -3920,7 +3951,10 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
         throttle: normalized.throttle,
         brake: normalized.brake,
         steer: normalized.steer,
-        handbrake: normalized.handbrake
+        handbrake: normalized.handbrake,
+        pitch: normalized.pitch,
+        roll: normalized.roll,
+        yaw: normalized.yaw
       });
       this._syncRigidToLegacy();
       this.lastStepMs = nowMs() - started;
@@ -4610,7 +4644,10 @@ const nowMs = () => (typeof performance !== 'undefined' && typeof performance.no
         throttle: level(input.gas),
         brake: level(input.brake),
         steer,
-        handbrake: level(input.handbrake)
+        handbrake: level(input.handbrake),
+        pitch: Number(input.pitch) || 0,
+        roll: Number(input.roll) || 0,
+        yaw: Number(input.yaw) || 0
       });
 
       const pose = rigid.interpolatedState();
