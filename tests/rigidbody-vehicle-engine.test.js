@@ -175,3 +175,43 @@ test('body roll and pitch stabilization can be independently tuned or disabled',
  assert.ok(Math.abs(tiltAngle(stiff.state.orientation,'roll'))<Math.abs(tiltAngle(soft.state.orientation,'roll')));
  assert.equal(soft.c.body.pitchStiffness,0);
 });
+
+
+test('front and rear suspension geometry use independent alignment settings',()=>{
+ const e=make();e.advance(1/120,{});
+ const wheels=e.telemetry.wheelGeometry;
+ assert.equal(wheels.length,4);
+ assert.equal(wheels[0].axle,'front');
+ assert.equal(wheels[2].axle,'rear');
+ assert.notEqual(wheels[0].camberDeg,wheels[2].camberDeg);
+ assert.ok(wheels.every(w=>Number.isFinite(w.rollCenterHeight)&&Number.isFinite(w.toeDeg)));
+});
+test('camber and toe change continuously with suspension compression',()=>{
+ const config={suspensionGeometry:{front:{camberStatic:-.5,camberGain:-30,toeStatic:0,toeGain:1}}};
+ const low=new RigidBodyVehicle({surfaceMesh:plane(),groundPlaneY:0,position:{x:0,y:.52,z:0},config});
+ const compressed=new RigidBodyVehicle({surfaceMesh:plane(),groundPlaneY:0,position:{x:0,y:.32,z:0},config});
+ const a=low._contacts({})[0],b=compressed._contacts({})[0];
+ assert.ok(b.compression>a.compression);
+ assert.ok(b.geometry.camberDeg<a.geometry.camberDeg);
+ assert.ok(b.geometry.toeDeg>a.geometry.toeDeg);
+ assert.ok(Math.abs(b.geometry.camberDeg-a.geometry.camberDeg)<10,'alignment must vary smoothly, not jump');
+});
+test('wheel tire frame follows sloped-road tangent and remains orthonormal',()=>{
+ const normal=V.norm({x:-.25,y:1,z:.12});
+ const mesh={closestPoint(p,max=Infinity){const d=p.x*.25-p.y-p.z*.12;const distance=Math.abs(d)/Math.hypot(.25,1,.12);if(distance>max)return null;const point={x:p.x-normal.x*d/Math.hypot(.25,1,.12),y:p.y-normal.y*d/Math.hypot(.25,1,.12),z:p.z-normal.z*d/Math.hypot(.25,1,.12)};return{point,normal,distance,signedDistance:d/Math.hypot(.25,1,.12)};}};
+ const e=new RigidBodyVehicle({surfaceMesh:mesh,position:{x:0,y:.5,z:0}});
+ const h=e._contacts({steer:.2})[0];
+ assert.ok(Math.abs(V.dot(h.tireForward,h.normal))<1e-6);
+ assert.ok(Math.abs(V.dot(h.tireRight,h.normal))<1e-6);
+ assert.ok(Math.abs(V.dot(h.tireForward,h.tireRight))<1e-6);
+ assert.ok(Math.abs(V.len(h.tireForward)-1)<1e-6);
+ assert.ok(Math.abs(V.len(h.tireRight)-1)<1e-6);
+});
+test('roll-centre height changes the lateral load-transfer moment arm',()=>{
+ const build=height=>new RigidBodyVehicle({surfaceMesh:plane(),groundPlaneY:0,position:{x:0,y:.3,z:0},config:{suspensionGeometry:{front:{rollCenterHeight:height},rear:{rollCenterHeight:height}}}});
+ const low=build(.05),high=build(.35);
+ for(const e of [low,high]){e.state.velocity={x:0,y:0,z:-20};e.advance(1/120,{steer:.7});}
+ assert.ok(high.telemetry.rollCenter.average>low.telemetry.rollCenter.average);
+ assert.ok(high.telemetry.rollCenter.lateralMomentArm<low.telemetry.rollCenter.lateralMomentArm);
+ assert.ok(Math.abs(high.telemetry.loadTransfer.lateral)<Math.abs(low.telemetry.loadTransfer.lateral));
+});
