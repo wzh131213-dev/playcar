@@ -818,12 +818,15 @@ class RigidBodyVehicle{
   const steeringAxis=V.mul(V.norm(V.add(V.mul(n,Math.cos(kpi)*Math.cos(caster)),V.add(V.mul(right0,-side*Math.sin(kpi)*Math.cos(caster)),V.mul(forward,-Math.sin(caster))))),-1);
   forward=V.norm(V.sub(rotateVectorAroundAxis(forward,steeringAxis,angle),V.mul(n,V.dot(rotateVectorAroundAxis(forward,steeringAxis,angle),n))));
   const right=V.norm(V.cross(forward,n));
+  const steeringNormal=rotateVectorAroundAxis(n,steeringAxis,angle);
+  const steeringCamberDeg=Math.atan2(V.dot(steeringNormal,right0),Math.max(1e-8,V.dot(steeringNormal,n)))*180/Math.PI;
+  const effectiveCamberDeg=camberDeg+steeringCamberDeg;
   const scrubRadius=Math.max(0,Number(g.scrubRadius)||0),mechanicalTrail=Math.max(0,Number(g.mechanicalTrail)||0);
   const jackingHeight=scrubRadius*Math.sin(angle)*Math.sin(kpi);
-  const camberedNormal=Q.rotate(Q.axis(forward,camberDeg*Math.PI/180),n);
+  const camberedNormal=Q.rotate(Q.axis(forward,effectiveCamberDeg*Math.PI/180),n);
   const camberedRight=V.norm(V.cross(forward,camberedNormal));
   const nominalRollCenter=front?DEFAULTS.suspensionGeometry.front.rollCenterHeight:DEFAULTS.suspensionGeometry.rear.rollCenterHeight;const rollCenterHeight=hardpoint?.valid?hardpoint.rollCenterHeight+(fallbackRollCenter-nominalRollCenter):fallbackRollCenter;
-  return {camber:camberDeg*Math.PI/180,camberDeg,toe:toeDeg*Math.PI/180,toeDeg,steer,forward,right,steeringAxis,casterDeg:caster*180/Math.PI,kingpinInclinationDeg:kpi*180/Math.PI,scrubRadius,mechanicalTrail,jackingHeight,camberedNormal,camberedRight,rollCenterHeight,travel,side,axle:front?'front':'rear',hardpointValid:!!hardpoint?.valid,instantCenter:hardpoint?.instantCenter||null,upperOuter:hardpoint?.upperOuter||null,lowerOuter:hardpoint?.lowerOuter||null,wheelOffsetX:hardpoint?.wheelOffsetX||0};
+  return {camber:effectiveCamberDeg*Math.PI/180,camberDeg:effectiveCamberDeg,steeringCamberDeg,toe:toeDeg*Math.PI/180,toeDeg,steer,forward,right,steeringAxis,casterDeg:caster*180/Math.PI,kingpinInclinationDeg:kpi*180/Math.PI,scrubRadius,mechanicalTrail,jackingHeight,camberedNormal,camberedRight,rollCenterHeight,travel,side,axle:front?'front':'rear',hardpointValid:!!hardpoint?.valid,instantCenter:hardpoint?.instantCenter||null,upperOuter:hardpoint?.upperOuter||null,lowerOuter:hardpoint?.lowerOuter||null,wheelOffsetX:hardpoint?.wheelOffsetX||0};
  }
  _contacts(input={}){
   const c=this.c,s=this.state,out=[],q=s.orientation,half=c.wheelbase/2,track=c.track/2;
