@@ -252,3 +252,31 @@ test('hardpoint solver safely falls back when requested travel exceeds arm reach
  assert.equal(g.hardpointValid,false);
  assert.ok(Number.isFinite(g.camberDeg)&&Number.isFinite(g.rollCenterHeight));
 });
+
+
+test('3D steering axis uses caster and kingpin inclination to change wheel heading and camber under steer',()=>{
+ const make=config=>new RigidBodyVehicle({groundPlaneY:0,config});
+ const base=make({suspensionGeometry:{front:{casterDeg:0,kingpinInclinationDeg:0}}});
+ const angled=make({suspensionGeometry:{front:{casterDeg:7,kingpinInclinationDeg:10}}});
+ const a=base._wheelKinematics(0,0,{x:0,y:1,z:0},{steer:.6});
+ const b=angled._wheelKinematics(0,0,{x:0,y:1,z:0},{steer:.6});
+ assert.ok(Math.abs(a.forward.y)<1e-8);
+ assert.ok(Math.abs(b.forward.y)>1e-4,'steering-axis inclination should create jacking/camber-related heading change');
+ assert.ok(Math.abs(a.forward.x-b.forward.x)>1e-4||Math.abs(a.forward.z-b.forward.z)>1e-4);
+ assert.ok(Number.isFinite(b.jackingHeight)&&b.jackingHeight>0);
+});
+test('3D steering axis reverses symmetrically with steering input',()=>{
+ const e=new RigidBodyVehicle({groundPlaneY:0,config:{suspensionGeometry:{front:{casterDeg:6,kingpinInclinationDeg:9}}}});
+ const left=e._wheelKinematics(0,0,{x:0,y:1,z:0},{steer:.5});
+ const right=e._wheelKinematics(0,0,{x:0,y:1,z:0},{steer:-.5});
+ assert.ok(Math.abs(left.jackingHeight+right.jackingHeight)<1e-8);
+ assert.ok(Math.abs(left.forward.x+right.forward.x)<.02);
+ assert.ok(Math.abs(left.forward.z-right.forward.z)<.02);
+});
+test('scrub radius and mechanical trail are exposed as finite steering geometry telemetry',()=>{
+ const e=new RigidBodyVehicle({groundPlaneY:0,config:{suspensionGeometry:{front:{scrubRadius:.045,mechanicalTrail:.065}}}});
+ const g=e._wheelKinematics(0,0,{x:0,y:1,z:0},{steer:.4});
+ assert.equal(g.scrubRadius,.045);
+ assert.equal(g.mechanicalTrail,.065);
+ assert.ok(Number.isFinite(g.steeringAxis.x)&&Number.isFinite(g.steeringAxis.y)&&Number.isFinite(g.steeringAxis.z));
+});
