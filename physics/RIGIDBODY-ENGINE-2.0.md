@@ -1,4 +1,4 @@
-# PlayCar Rigid-Body Vehicle Physics 2.6.0
+# PlayCar Rigid-Body Vehicle Physics 2.7.0
 
 This package adds an independent rigid-body vehicle solver to the PlayCar physics branch. It is a new engine module; it does not silently replace the existing 1.8.0 simcade engine or change the current 3D lab's runtime selection.
 
@@ -133,3 +133,19 @@ Compression-dependent camber/toe are evaluated continuously at each fixed step. 
 Roll-centre height migrates with suspension compression and left/right wheel travel. The lateral load-transfer estimate now uses the effective moment arm `max(0.05, com.y - averageRollCenterHeight)`, rather than treating the centre of mass as the full roll lever arm. This is still a tunable kinematic approximation, not a complete instant-centre solver; measured pickup-point coordinates and anti-dive/anti-squat geometry are not yet modeled.
 
 Per-wheel results are available in `telemetry.wheelGeometry`: axle, camber, toe, roll-centre height, normalized travel, wheel-centre position, road contact normal and tire tangent axes. Axle averages and the effective lateral moment arm are available in `telemetry.rollCenter`.
+
+
+## Hardpoint-based suspension kinematics 2.7.0
+
+Front and rear axles now have independent, configurable front-view double-wishbone hardpoints under `config.suspensionGeometry.front.hardpoints` and `rear.hardpoints`. Each axle defines upper/lower inner pivots and upper/lower outer ball joints in metres, with outward-positive lateral `x` and upward-positive `y`.
+
+For each suspension compression step the solver:
+1. Holds the lower control-arm length and solves the lower ball-joint lateral position at the requested vertical travel.
+2. Intersects the upper-arm circle with the upright-length circle to locate the upper ball joint, selecting the solution closest to the static pickup point.
+3. Derives camber change from the solved upright angle relative to its zero-travel reference.
+4. Intersects the upper and lower control-arm axes to obtain the front-view instant centre, then projects the contact-patch-to-instant-centre line to the vehicle centreline for a roll-centre height estimate.
+5. Applies the solved lower-joint lateral migration to the wheel contact lever arm so the contact force location moves with the suspension geometry.
+
+Default front/rear hardpoints are illustrative starting geometry, not measured manufacturer pickup coordinates. The solver is a 2D front-view double-wishbone model: it does not yet solve 3D control-arm sweep, caster, KPI/SAI, steering-axis scrub radius, compliance/bushing deflection, anti-dive, anti-squat, or multi-link/MacPherson strut constraints. If a requested travel position has no valid circle intersection, the solver marks `hardpointValid=false` and falls back to the configured camber/roll-centre approximation without emitting non-finite geometry.
+
+Per-wheel telemetry adds `hardpointValid`, `instantCenter`, `upperOuter`, `lowerOuter`, and `wheelOffsetX`; the existing `wheelGeometry` continues to expose camber, toe, roll-centre height, contact normal and tire tangent axes. Set `hardpoints.enabled=false` per axle to retain the previous parameterized approximation.
