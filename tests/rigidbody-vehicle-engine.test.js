@@ -145,31 +145,31 @@ function tiltAngle(q,axis){
 }
 test('body roll spring restores a tilted chassis toward upright',()=>{
  const {Quaternion:Q}=require('../physics/rigidbody-vehicle-engine.js');
- const e=make();e.state.orientation=Q.axis({x:0,y:0,z:1},.12);
+ const e=new RigidBodyVehicle({position:{x:0,y:10,z:0}});e.state.orientation=Q.axis({x:0,y:0,z:1},.12);
  const before=Math.abs(tiltAngle(e.state.orientation,'roll'));
  for(let i=0;i<30;i++)e.advance(1/120,{});
  assert.ok(Math.abs(tiltAngle(e.state.orientation,'roll'))<before,'roll restoring torque must reduce chassis roll angle');
 });
 test('body pitch spring restores a pitched chassis toward level',()=>{
  const {Quaternion:Q}=require('../physics/rigidbody-vehicle-engine.js');
- const e=make();e.state.orientation=Q.axis({x:1,y:0,z:0},.12);
+ const e=new RigidBodyVehicle({position:{x:0,y:10,z:0}});e.state.orientation=Q.axis({x:1,y:0,z:0},.12);
  const before=Math.abs(tiltAngle(e.state.orientation,'pitch'));
  for(let i=0;i<30;i++)e.advance(1/120,{});
  assert.ok(Math.abs(tiltAngle(e.state.orientation,'pitch'))<before,'pitch restoring torque must reduce chassis pitch angle');
 });
 test('body roll damping dissipates roll angular velocity',()=>{
- const e=make();e.state.angularVelocity={x:0,y:0,z:.8};
+ const e=new RigidBodyVehicle({position:{x:0,y:10,z:0}});e.state.angularVelocity={x:0,y:0,z:.8};
  for(let i=0;i<30;i++)e.advance(1/120,{});
  assert.ok(Math.abs(e.state.angularVelocity.z)<.8,'roll damping must reduce angular velocity');
 });
 test('body pitch damping dissipates pitch angular velocity',()=>{
- const e=make();e.state.angularVelocity={x:.8,y:0,z:0};
+ const e=new RigidBodyVehicle({position:{x:0,y:10,z:0}});e.state.angularVelocity={x:.8,y:0,z:0};
  for(let i=0;i<30;i++)e.advance(1/120,{});
  assert.ok(Math.abs(e.state.angularVelocity.x)<.8,'pitch damping must reduce angular velocity');
 });
 test('body roll and pitch stabilization can be independently tuned or disabled',()=>{
  const {Quaternion:Q}=require('../physics/rigidbody-vehicle-engine.js');
- const soft=new RigidBodyVehicle({groundPlaneY:0,position:{x:0,y:.3,z:0},config:{body:{rollStiffness:1000,rollDamping:100,pitchStiffness:0,pitchDamping:0}}});
+ const soft=new RigidBodyVehicle({position:{x:0,y:10,z:0},config:{body:{rollStiffness:1000,rollDamping:100,pitchStiffness:0,pitchDamping:0}}});
  const stiff=new RigidBodyVehicle({groundPlaneY:0,position:{x:0,y:.3,z:0},config:{body:{rollStiffness:12000,rollDamping:1000,pitchStiffness:0,pitchDamping:0}}});
  for(const e of [soft,stiff]){e.state.orientation=Q.axis({x:0,y:0,z:1},.1);e.advance(1/120,{});}
  assert.ok(Math.abs(tiltAngle(stiff.state.orientation,'roll'))<Math.abs(tiltAngle(soft.state.orientation,'roll')));
