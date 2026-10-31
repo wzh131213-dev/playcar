@@ -176,6 +176,11 @@ All three are configurable and exposed in telemetry.
 - Hardpoint suspension geometry solves camber/toe migration, instant centre,
   roll-centre height, caster, KPI, scrub radius, mechanical trail and jacking height.
   Disable with `suspensionGeometry.front.hardpoints.enabled = false`.
+- Static alignment is per-wheel: camber and toe are mirrored left/right (both
+  wheels of an axle lean/point inward). `telemetry.wheelGeometry[i].camberDeg` and
+  `.toeDeg` are signed for that wheel, while roll-induced camber is common to both
+  sides. Applying one signed angle to both sides would steer the whole axle and
+  make the car drift and spin at highway speed with zero steering input.
 - Airborne control: while no wheel is in contact, `pitch`, `roll` and `yaw` inputs
   (from `advance(dt, {pitch, roll, yaw})`) drive a proportional–derivative torque
   toward `input · airControl.*Rate`. Damping is built into the error term, so the
@@ -324,10 +329,16 @@ world.addStaticMesh(walls);
 
 ## 6. Validation and performance
 
-- `npm test` — 125 Node tests (`node --test`), no browser required.
+- `npm test` — 134 Node tests (`node --test`), no browser required.
+- `physics/physics-checks.js` — 10 isolated PASS/FAIL scenarios shared by the
+  Node suite and `test-scene.html`.
 - `npm run smoke` — boots the real `physics/scene3d.js` with the vendored
   Three.js and a stubbed WebGL renderer, drives it for 300 frames, and checks the
   car, geometry, telemetry and scene status.
+  `PLAYCAR_SCENE=physics/test-scene.js PLAYCAR_START_Z=88 npm run smoke` does the
+  same for the proving ground.
+- Straight-line stability: 15 s of full throttle reaches 57.9 m/s with less than
+  3° of yaw drift, and an injected 0.03 rad/s yaw rate decays at 25 m/s.
 - `npm run bench` — fixed-step throughput.
 - `npm run build` — regenerates the bundle and parses it with `new vm.Script`.
 

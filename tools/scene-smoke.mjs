@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Headless smoke test for physics/scene3d.js.
+/* Headless smoke test for a PlayCar scene module (default physics/scene3d.js).
  *
  * Node cannot create a WebGL context, so this harness stubs the renderer and the
  * small DOM surface the scene touches, then imports the real Three.js build and
@@ -7,6 +7,8 @@
  * engine, the vehicle, props, telemetry, render loop) is the shipping code.
  *
  * Run: node tools/scene-smoke.mjs
+ *      PLAYCAR_SCENE=physics/test-scene.js PLAYCAR_START_Z=88 node tools/scene-smoke.mjs
+ *      PLAYCAR_FRAMES=1200 ...   # longer stress drive
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,6 +16,9 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const sceneFile = process.env.PLAYCAR_SCENE || 'physics/scene3d.js';
+const spawnZ = Number.isFinite(Number(process.env.PLAYCAR_START_Z)) ? Number(process.env.PLAYCAR_START_Z) : 34;
+const frames = Number.isFinite(Number(process.env.PLAYCAR_FRAMES)) ? Math.max(1, Number(process.env.PLAYCAR_FRAMES)) : 300;
 
 class FakeElement {
   constructor(tag = 'div', id = '') {
@@ -126,7 +131,7 @@ win.PlayCarPhysicsEngine = globalThis.PlayCarPhysicsEngine;
 
 // Build an importable copy of the scene with the CDN import replaced by the
 // vendored Three.js build and the WebGL renderer stubbed.
-let scene = fs.readFileSync(path.join(root, 'physics/scene3d.js'), 'utf8');
+let scene = fs.readFileSync(path.join(root, sceneFile), 'utf8');
 scene = scene.replace(/^import\s+\*\s+as\s+THREE[^\n]*\n/, '');
 const harness = `
 import * as REAL from '../vendor/three.module.min.js';
@@ -159,12 +164,21 @@ if (!runtime.engine.rigidBody) {
   process.exit(1);
 }
 
-// Drive forward for ~4 simulated seconds (240 frames at 60 Hz).
+// Drive forward for the requested number of 60 Hz frames (300 = ~5 s).
 runtime.setInput({ gas: true, steer: 0, brake: false, handbrake: false });
-for (let i = 0; i < 300; i++) {
+for (let i = 0; i < frames; i++) {
   fakeNow += 1000 / 60;
   const fn = rafQueue.shift();
   if (!fn) break;
+  if (process.env.PLAYCAR_TRACE && i % 50 === 0) {
+    const s = runtime.snapshot();
+    const q = s.rigid ? s.rigid.state.position : s.state.position;
+    const o = s.rigid ? s.rigid.state.orientation : s.state.orientation;
+    const yaw = Math.atan2(2 * (o.w * o.y + o.x * o.z), 1 - 2 * (o.y * o.y + o.z * o.z)) * 180 / Math.PI;
+    const body = runtime.engine.rigidBody || runtime.engine;
+    const mu = (body.lastContacts || []).map(c => c.friction.toFixed(2) + '@' + c.point.x.toFixed(2)).join(',');
+    console.log(`TRACE ${i} x=${q.x.toFixed(1)} y=${q.y.toFixed(2)} z=${q.z.toFixed(1)} v=${Math.hypot(s.state.velocity.x, s.state.velocity.z).toFixed(1)} yaw=${yaw.toFixed(1)} mu=${mu}`);
+  }
   try { fn(fakeNow); } catch (e) {
     console.error(`SCENE FRAME ${i} FAILED:`, e && e.stack || e);
     process.exit(1);
@@ -178,7 +192,7 @@ const tele = runtime.engine.getTelemetry();
 if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.z)) {
   console.error('NON-FINITE VEHICLE POSITION', p); process.exit(1);
 }
-if (Math.abs(p.z - 34) < 0.5 && Math.abs(p.x) < 0.5) {
+if (Math.abs(p.z - spawnZ) < 0.5 && Math.abs(p.x) < 0.5) {
   console.error('VEHICLE DID NOT MOVE', p); process.exit(1);
 }
 if (!Number.isFinite(speed) || speed < 1) {
@@ -199,9 +213,10 @@ if (sceneHost.children.length === 0) {
 
 console.log('RESULT ' + JSON.stringify({
   ok: true,
+  scene: sceneFile,
   version: win.PlayCarPhysicsEngine.version,
   solver: snap.solver,
-  frames: 300,
+  frames,
   position: { x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2) },
   speed: +speed.toFixed(2),
   gear: tele.gear,

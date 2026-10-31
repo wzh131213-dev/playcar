@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111f"><title>PlayCar · 物理测试场</title>
+<style>
+:root{color-scheme:dark;--bg:#07111f;--panel:#0d1b2e;--panel2:#091728;--line:#203650;--muted:#91a6bd;--cyan:#76e4f7;--green:#7be0b0;--red:#ff8d9a;--amber:#ffc46b;--text:#edf5ff}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(ellipse at 15% 0,#142a43 0,transparent 44%),var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{padding:clamp(10px,2vw,24px)}button,input,select,a.btn{font:inherit}button,a.btn,select{border:1px solid #36516d;border-radius:10px;background:#152942;color:var(--text);padding:10px 13px;min-height:42px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation}button.primary{background:var(--cyan);color:#07111f;border-color:var(--cyan);font-weight:800}button.danger{border-color:#704052;background:#3a202d}button:active{transform:scale(.985)}button:focus-visible,a:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+header{max-width:1460px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}.eyebrow{font-size:11px;letter-spacing:2.5px;color:var(--cyan);font-weight:850}h1{font-size:clamp(24px,3.6vw,34px);line-height:1.1;margin:4px 0}.sub{color:var(--muted);font-size:12px;margin:0}.status{border:1px solid #2a4662;border-radius:999px;padding:7px 11px;color:var(--green);font-size:12px}
+main{max-width:1460px;margin:auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,420px);gap:14px}.panel{background:linear-gradient(155deg,#10233a,#0a1728);border:1px solid var(--line);border-radius:16px;padding:16px;min-width:0;box-shadow:0 12px 36px #0002}.panel h2{font-size:16px;margin:0 0 4px}.muted{color:var(--muted);font-size:12px}
+#scene3d{height:clamp(360px,52vw,620px);min-height:360px;width:100%;overflow:hidden;border-radius:12px;background:linear-gradient(#14314a,#07111f);margin-top:12px;position:relative}#scene3d canvas{display:block;width:100%;height:100%;touch-action:none}
+.scene-buttons,.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.scene-buttons button{flex:1;min-width:70px;min-height:48px;font-weight:750}.gas{background:#123a42;border-color:#28727b}.brake{background:#3a202d;border-color:#704052}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}.stat{background:var(--panel2);border:1px solid #1d334a;border-radius:10px;padding:9px;min-width:0}.stat small{display:block;color:var(--muted);font-size:10px}.stat strong{display:block;font-size:16px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.checks-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}.summary{display:flex;align-items:baseline;gap:10px;margin:12px 0 8px;font-variant-numeric:tabular-nums}.summary b{font-size:30px;line-height:1}.ok{color:var(--green)}.bad{color:var(--red)}
+#check-list{display:flex;flex-direction:column;gap:6px;max-height:520px;overflow:auto;padding-right:3px}
+.check{background:var(--panel2);border:1px solid #1d334a;border-radius:10px;padding:8px 10px;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:start}.check .mark{font-weight:900;color:var(--green)}.check.bad{border-color:#5c2b3a}.check.bad .mark{color:var(--red)}.check .name{font-size:12px;font-weight:700}.check .note{color:var(--muted);font-size:10px}.check .detail{grid-column:2/4;color:#b9cee0;font:10px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}.check .ms{color:var(--muted);font-size:10px;white-space:nowrap}
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #29425c;border-radius:999px;padding:4px 9px;font-size:11px;color:#c9d8e8}.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+footer{max-width:1460px;margin:16px auto 0;color:#71879e;font-size:11px}
+@media(max-width:980px){main{grid-template-columns:1fr}#check-list{max-height:none}}
+</style>
+</head>
+<body>
+<header>
+ <div>
+  <div class="eyebrow">PLAYCAR / PHYSICS PROVING GROUND</div>
+  <h1>物理测试场</h1>
+  <p class="sub">摩擦车道 · 坡度 · 搓板路 · 跳台 · 实心墙 · 动态道具 · 10 项确定性自检</p>
+ </div>
+ <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+  <span class="status" id="runtime-status">正在初始化引擎…</span>
+  <a class="btn" href="./index.html">← 返回控制中心</a>
+ </div>
+</header>
+
+<main>
+ <section class="panel">
+  <div class="checks-head">
+   <div><h2>3D 测试场</h2><div class="muted">WASD / 方向键驾驶，空格手刹，R 重置；右侧自检使用独立世界，不影响这辆车</div></div>
+   <div class="muted" id="scene-status">等待 3D 初始化</div>
+  </div>
+  <div id="scene3d" aria-label="PlayCar 物理测试场三维场景"></div>
+  <div class="scene-buttons">
+   <button id="scene-left" aria-label="左转">◀ 左转</button>
+   <button id="scene-gas" class="gas" aria-label="油门">▲ 油门</button>
+   <button id="scene-brake" class="brake" aria-label="刹车">▼ 刹车</button>
+   <button id="scene-right" aria-label="右转">右转 ▶</button>
+   <button id="scene-handbrake" aria-label="手刹">手刹</button>
+  </div>
+  <div class="actions">
+   <button class="primary" id="scene-reset">重置车辆</button>
+   <button id="scene-follow">跟随视角：开</button>
+  </div>
+  <div class="stats">
+   <div class="stat"><small>速度</small><strong id="stat-speed">0</strong></div>
+   <div class="stat"><small>挡位 / 转速</small><strong id="stat-rpm">1 / 900</strong></div>
+   <div class="stat"><small>轮接触 / 底盘接触</small><strong id="stat-contacts">0 / 0</strong></div>
+   <div class="stat"><small>路面 μ</small><strong id="stat-mu">—</strong></div>
+   <div class="stat"><small>物理步耗时</small><strong id="stat-ms">0 ms</strong></div>
+   <div class="stat"><small>位置 X / Z</small><strong id="stat-pos">0 / 0</strong></div>
+  </div>
+ </section>
+
+ <aside class="panel">
+  <div class="checks-head">
+   <div><h2>物理自检</h2><div class="muted">与 <code>npm test</code> 使用同一套 <code>physics/physics-checks.js</code></div></div>
+   <button class="primary" id="run-checks">运行全部测试</button>
+  </div>
+  <div class="summary"><b id="check-pass" class="ok">—</b><span id="check-text" class="muted">尚未运行</span></div>
+  <div id="check-list"><div class="muted">点击“运行全部测试”开始。每项都会新建独立的刚体世界，约 2 秒完成。</div></div>
+  <div class="actions">
+   <button id="download-checks">下载 JSON 结果</button>
+  </div>
+  <div class="legend">
+   <span class="chip"><i class="dot" style="background:#9fd8ef"></i>冰面 μ 0.18</span>
+   <span class="chip"><i class="dot" style="background:#2f6f8f"></i>湿滑 μ 0.60</span>
+   <span class="chip"><i class="dot" style="background:#6d7c86"></i>干燥 μ 1.00</span>
+   <span class="chip"><i class="dot" style="background:#d8c25a"></i>搓板路</span>
+   <span class="chip"><i class="dot" style="background:#ff7a45"></i>实心墙 / 跳台</span>
+  </div>
+ </aside>
+</main>
+
+<footer>测试场与自检共用 3.0 刚体内核；自检结果由真实仿真生成，不是预设文案。静态服务器运行，避免 <code>file://</code> 下 ES 模块无法加载。</footer>
+
+<!-- Engine modules only: the all-in-one bundle also boots the circuit scene. -->
+<script src="./physics/rigidbody-core.js?v=3.0.0"></script>
+<script src="./physics/rigidbody-vehicle-engine.js?v=3.0.0"></script>
+<script src="./physics/playcar-physics-engine.js?v=3.0.0"></script>
+<script src="./physics/playcar-unified.js?v=3.0.0"></script>
+<script src="./physics/physics-checks.js?v=1.0.0"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  let lastResult = null;
+
+  function setStatus(text, ok = true) {
+    const el = $('runtime-status');
+    el.textContent = text;
+    el.style.color = ok ? 'var(--green)' : 'var(--red)';
+  }
+
+  function render(result) {
+    lastResult = result;
+    $('check-pass').textContent = `${result.passed}/${result.total}`;
+    $('check-pass').className = result.ok ? 'ok' : 'bad';
+    $('check-text').textContent = result.ok
+      ? `全部通过 · ${result.ms} ms · 引擎 ${result.engine}`
+      : `${result.failed} 项失败 · ${result.ms} ms · 引擎 ${result.engine}`;
+    const list = $('check-list');
+    list.replaceChildren();
+    for (const item of result.results) {
+      const row = document.createElement('div');
+      row.className = 'check' + (item.ok ? '' : ' bad');
+      const mark = document.createElement('div');
+      mark.className = 'mark';
+      mark.textContent = item.ok ? '✓' : '✕';
+      const body = document.createElement('div');
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = item.name;
+      const note = document.createElement('div');
+      note.className = 'note';
+      note.textContent = item.note;
+      body.append(name, note);
+      const ms = document.createElement('div');
+      ms.className = 'ms';
+      ms.textContent = item.ms + ' ms';
+      const detail = document.createElement('div');
+      detail.className = 'detail';
+      detail.textContent = typeof item.detail === 'string' ? item.detail : JSON.stringify(item.detail);
+      row.append(mark, body, ms, detail);
+      list.append(row);
+    }
+  }
+
+  function run() {
+    if (!window.PlayCarPhysicsChecks) {
+      $('check-text').textContent = '自检模块未加载';
+      return;
+    }
+    $('run-checks').disabled = true;
+    $('check-text').textContent = '运行中…';
+    // Yield one frame so the button state paints before the suite blocks.
+    setTimeout(() => {
+      try {
+        render(window.PlayCarPhysicsChecks.runAll());
+      } catch (error) {
+        $('check-text').textContent = '自检运行失败：' + error.message;
+      } finally {
+        $('run-checks').disabled = false;
+      }
+    }, 40);
+  }
+
+  $('run-checks').addEventListener('click', run);
+  $('download-checks').addEventListener('click', () => {
+    if (!lastResult) {
+      $('check-text').textContent = '请先运行测试';
+      return;
+    }
+    const blob = new Blob([JSON.stringify(lastResult, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'playcar-physics-checks-' + Date.now() + '.json';
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  });
+
+  window.addEventListener('playcar:ready', event => {
+    const scene = event.detail && event.detail.scene;
+    setStatus(scene === 'proving-ground' ? '测试场引擎已连接' : '引擎已连接');
+  });
+
+  setInterval(() => {
+    if (!window.PlayCarRuntime) return;
+    const snap = window.PlayCarRuntime.snapshot();
+    const t = snap.telemetry;
+    const p = snap.rigid ? snap.rigid.state.position : snap.state.position;
+    $('stat-speed').textContent = (t.speed * 3.6).toFixed(0) + ' km/h';
+    $('stat-rpm').textContent = (t.gear || 1) + ' / ' + Math.round(t.rpm || 0);
+    $('stat-contacts').textContent = (t.wheelContacts || 0) + ' / ' + (t.chassisContacts || 0);
+    const mu = typeof window.PlayCarRuntime.surfaceFriction === 'function' ? window.PlayCarRuntime.surfaceFriction() : null;
+    $('stat-mu').textContent = mu === null ? '—' : mu.toFixed(2);
+    $('stat-ms').textContent = (snap.debug.physicsMs || 0).toFixed(2) + ' ms';
+    $('stat-pos').textContent = p.x.toFixed(0) + ' / ' + p.z.toFixed(0);
+  }, 200);
+
+  setTimeout(run, 900);
+})();
+</script>
+<script type="module" src="./physics/test-scene.js?v=1.0.0"></script>
+</body>
+</html>

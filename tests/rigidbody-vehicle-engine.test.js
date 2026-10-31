@@ -190,11 +190,25 @@ test('camber and toe change continuously with suspension compression',()=>{
  const config={suspensionGeometry:{front:{camberStatic:-.5,camberGain:-30,toeStatic:0,toeGain:1}}};
  const low=new RigidBodyVehicle({surfaceMesh:plane(),groundPlaneY:0,position:{x:0,y:.52,z:0},config});
  const compressed=new RigidBodyVehicle({surfaceMesh:plane(),groundPlaneY:0,position:{x:0,y:.32,z:0},config});
- const a=low._contacts({})[0],b=compressed._contacts({})[0];
+ const a=low._contacts({})[1],b=compressed._contacts({})[1];
  assert.ok(b.compression>a.compression);
  assert.ok(b.geometry.camberDeg<a.geometry.camberDeg);
  assert.ok(b.geometry.toeDeg>a.geometry.toeDeg);
  assert.ok(Math.abs(b.geometry.camberDeg-a.geometry.camberDeg)<10,'alignment must vary smoothly, not jump');
+});
+test('static camber and toe are mirrored per side so the car tracks straight',()=>{
+ const e=make();
+ e.advance(1/120,{});
+ const left=e._contacts({}).filter(c=>c.geometry.side<0);
+ const right=e._contacts({}).filter(c=>c.geometry.side>0);
+ assert.ok(left.length>0&&right.length>0);
+ for(const l of left){
+  const r=right.find(c=>c.index===l.index+1);
+  assert.ok(r,'missing right-side partner for wheel '+l.index);
+  assert.ok(Math.abs(l.geometry.camberDeg+r.geometry.camberDeg)<0.01,'camber must mirror left/right (roll camber may differ slightly)');
+  assert.ok(Math.abs(l.geometry.toeDeg+r.geometry.toeDeg)<1e-9,'toe must mirror left/right');
+  assert.ok(Math.abs(l.geometry.toeDeg)>0,'rear static toe must be non-zero to exercise the sign');
+ }
 });
 test('wheel tire frame follows sloped-road tangent and remains orthonormal',()=>{
  const normal=V.norm({x:-.25,y:1,z:.12});
@@ -279,4 +293,10 @@ test('scrub radius and mechanical trail are exposed as finite steering geometry 
  assert.equal(g.scrubRadius,.045);
  assert.equal(g.mechanicalTrail,.065);
  assert.ok(Number.isFinite(g.steeringAxis.x)&&Number.isFinite(g.steeringAxis.y)&&Number.isFinite(g.steeringAxis.z));
+});
+test('symmetric static alignment produces no net lateral force at rest',()=>{
+ const e=make();
+ e.advance(1/120,{});
+ const sum=e.telemetry.forces.reduce((n,f)=>n+f.Fy,0);
+ assert.ok(Math.abs(sum)<1,'static camber/toe must not produce a net side force, got '+sum.toFixed(3)+' N');
 });
