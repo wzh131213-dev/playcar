@@ -73,7 +73,7 @@ function solveHardpointKinematics(g,compression,fallbackHeight){
  let rollCenterHeight=fallbackHeight;
  if(ic&&Math.abs(ic.x-contactX)>1e-5){
   const candidate=ic.y*(0-contactX)/(ic.x-contactX);
-  if(Number.isFinite(candidate))rollCenterHeight=V.clamp(candidate,-.15,1.2);
+  if(Number.isFinite(candidate))rollCenterHeight=V.clamp(candidate,-2,2);
  }
  return{valid:true,rollCenterHeight,wheelOffsetX:current.lower.x-lo.x,camberDeltaDeg,instantCenter:ic,upperOuter:current.upper,lowerOuter:current.lower};
 }
@@ -113,7 +113,7 @@ class RigidBodyVehicle{
   const tilt=this._bodyTilt(),travel=V.clamp(compression/Math.max(.001,c.suspension.max-c.suspension.min),-1,1);
   const fallbackRollCenter=Math.max(0,g.rollCenterHeight+g.rollCenterTravelGain*compression+g.rollCenterLateralGain*side*compression);
   const hardpoint=solveHardpointKinematics(g,compression,fallbackRollCenter);
-  const camberDeg=g.camberStatic+(hardpoint?.valid?hardpoint.camberDeltaDeg:g.camberGain*compression)+g.rollCamberGain*tilt.roll*180/Math.PI;
+  const camberDeg=g.camberStatic+g.camberGain*compression+(hardpoint?.valid?hardpoint.camberDeltaDeg:0)+g.rollCamberGain*tilt.roll*180/Math.PI;
   const toeDeg=g.toeStatic+g.toeGain*compression;
   const speed=V.len(s.velocity),steer=front?V.clamp(input.steer||0,-1,1)*c.steering.maxAngle*(1-(1-c.steering.highSpeedScale)*V.clamp(speed/55,0,1)):0;
   const n=V.norm(normal),bodyForward=Q.rotate(s.orientation,{x:0,y:0,z:-1});
@@ -124,7 +124,7 @@ class RigidBodyVehicle{
   const right=V.norm(V.cross(forward,n));
   const camberedNormal=Q.rotate(Q.axis(forward,camberDeg*Math.PI/180),n);
   const camberedRight=V.norm(V.cross(forward,camberedNormal));
-  const rollCenterHeight=hardpoint?.valid?hardpoint.rollCenterHeight:fallbackRollCenter;
+  const nominalRollCenter=front?DEFAULTS.suspensionGeometry.front.rollCenterHeight:DEFAULTS.suspensionGeometry.rear.rollCenterHeight;const rollCenterHeight=hardpoint?.valid?hardpoint.rollCenterHeight+(fallbackRollCenter-nominalRollCenter):fallbackRollCenter;
   return {camber:camberDeg*Math.PI/180,camberDeg,toe:toeDeg*Math.PI/180,toeDeg,steer,forward,right,camberedNormal,camberedRight,rollCenterHeight,travel,side,axle:front?'front':'rear',hardpointValid:!!hardpoint?.valid,instantCenter:hardpoint?.instantCenter||null,upperOuter:hardpoint?.upperOuter||null,lowerOuter:hardpoint?.lowerOuter||null,wheelOffsetX:hardpoint?.wheelOffsetX||0};
  }
  _contacts(input={}){
