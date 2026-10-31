@@ -1,4 +1,4 @@
-# PlayCar Rigid-Body Vehicle Physics 2.7.0
+# PlayCar Rigid-Body Vehicle Physics 2.8.0
 
 This package adds an independent rigid-body vehicle solver to the PlayCar physics branch. It is a new engine module; it does not silently replace the existing 1.8.0 simcade engine or change the current 3D lab's runtime selection.
 
@@ -135,7 +135,7 @@ Roll-centre height migrates with suspension compression and left/right wheel tra
 Per-wheel results are available in `telemetry.wheelGeometry`: axle, camber, toe, roll-centre height, normalized travel, wheel-centre position, road contact normal and tire tangent axes. Axle averages and the effective lateral moment arm are available in `telemetry.rollCenter`.
 
 
-## Hardpoint-based suspension kinematics 2.7.0
+## Hardpoint-based suspension kinematics 2.8.0
 
 Front and rear axles now have independent, configurable front-view double-wishbone hardpoints under `config.suspensionGeometry.front.hardpoints` and `rear.hardpoints`. Each axle defines upper/lower inner pivots and upper/lower outer ball joints in metres, with outward-positive lateral `x` and upward-positive `y`.
 
@@ -149,3 +149,12 @@ For each suspension compression step the solver:
 Default front/rear hardpoints are illustrative starting geometry, not measured manufacturer pickup coordinates. The solver is a 2D front-view double-wishbone model: it does not yet solve 3D control-arm sweep, caster, KPI/SAI, steering-axis scrub radius, compliance/bushing deflection, anti-dive, anti-squat, or multi-link/MacPherson strut constraints. If a requested travel position has no valid circle intersection, the solver marks `hardpointValid=false` and falls back to the configured camber/roll-centre approximation without emitting non-finite geometry.
 
 Per-wheel telemetry adds `hardpointValid`, `instantCenter`, `upperOuter`, `lowerOuter`, and `wheelOffsetX`; the existing `wheelGeometry` continues to expose camber, toe, roll-centre height, contact normal and tire tangent axes. Set `hardpoints.enabled=false` per axle to retain the previous parameterized approximation.
+
+
+## 3D steering-axis geometry 2.8.0
+
+Front and rear axle alignment now includes `casterDeg`, `kingpinInclinationDeg`, `scrubRadius`, and `mechanicalTrail`. Steering and toe rotation are applied about a normalized three-dimensional steering axis built from the contact normal, wheel lateral axis, caster, and side-dependent kingpin inclination. The resulting wheel-forward vector is reprojected onto the road tangent plane before tire forces are evaluated.
+
+Scrub radius and kingpin inclination produce a signed steering jacking displacement `jackingHeight = scrubRadius * sin(steer + toe) * sin(KPI)`; the wheel centre is displaced along the contact normal by this amount. The geometry is exposed per wheel through `steeringAxis`, `casterDeg`, `kingpinInclinationDeg`, `scrubRadius`, `mechanicalTrail`, and `jackingHeight` telemetry.
+
+Default front values are 5.5 degrees caster, 8.5 degrees KPI, 35 mm scrub radius and 45 mm mechanical trail. Rear steering-axis values default to zero. These are generic illustrative tuning values, not measured values for a specific production vehicle. Mechanical trail is exposed as steering geometry telemetry; it is not yet coupled into a separate steering-rack torque model. The control-arm instant-centre solver remains a 2D front-view double-wishbone approximation; this update adds a 3D steering axis but does not yet solve full 3D control-arm sweep, caster gain from hardpoint travel, or compliance.
