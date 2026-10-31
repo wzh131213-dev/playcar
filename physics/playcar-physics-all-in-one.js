@@ -3008,9 +3008,13 @@
       const travel = V.clamp(compression / Math.max(0.001, c.suspension.max - c.suspension.min), -1, 1);
       const fallbackRollCenter = Math.max(0, g.rollCenterHeight + g.rollCenterTravelGain * compression + g.rollCenterLateralGain * side * compression);
       const hardpoint = solveHardpointKinematics(g, compression, fallbackRollCenter);
-      const camberDeg = g.camberStatic + g.camberGain * compression +
-        (hardpoint && hardpoint.valid ? hardpoint.camberDeltaDeg : 0) + g.rollCamberGain * tilt.roll * 180 / Math.PI;
-      const toeDeg = g.toeStatic + g.toeGain * compression;
+      // Static alignment (camber, toe) is mirrored per side: both wheels of an
+      // axle lean/point inward. Applying the same signed angle to both sides
+      // would steer the whole axle and make the car drift at speed.
+      const alignmentCamberDeg = g.camberStatic + g.camberGain * compression +
+        (hardpoint && hardpoint.valid ? hardpoint.camberDeltaDeg : 0);
+      const camberDeg = side * alignmentCamberDeg + g.rollCamberGain * tilt.roll * 180 / Math.PI;
+      const toeDeg = side * (g.toeStatic + g.toeGain * compression);
       const speed = V.len(s.velocity);
       const steer = front
         ? V.clamp(input.steer || 0, -1, 1) * c.steering.maxAngle *
