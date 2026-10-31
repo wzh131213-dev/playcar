@@ -216,3 +216,39 @@ test('roll-centre height changes the lateral load-transfer moment arm',()=>{
  assert.ok(high.telemetry.rollCenter.lateralMomentArm<low.telemetry.rollCenter.lateralMomentArm);
  assert.ok(Math.abs(high.telemetry.loadTransfer.lateral)<Math.abs(low.telemetry.loadTransfer.lateral));
 });
+
+
+test('hardpoint suspension geometry solves finite instant centres and roll centres per axle',()=>{
+ const e=make();e.advance(1/120,{});
+ const wheels=e.telemetry.wheelGeometry;
+ assert.equal(wheels.length,4);
+ assert.ok(wheels.every(w=>w.hardpointValid,'default hardpoint geometry should solve'));
+ assert.ok(wheels.every(w=>Number.isFinite(w.rollCenterHeight)));
+ assert.ok(wheels.every(w=>w.instantCenter&&Number.isFinite(w.instantCenter.x)&&Number.isFinite(w.instantCenter.y)));
+ assert.ok(wheels.every(w=>w.upperOuter&&w.lowerOuter));
+ assert.notEqual(wheels[0].rollCenterHeight,wheels[2].rollCenterHeight);
+});
+test('hardpoint motion changes upright camber and wheel lateral position with compression',()=>{
+ const config={suspensionGeometry:{front:{hardpoints:{enabled:true}}}};
+ const low=new RigidBodyVehicle({surfaceMesh:plane(),groundPlaneY:0,position:{x:0,y:.52,z:0},config});
+ const compressed=new RigidBodyVehicle({surfaceMesh:plane(),groundPlaneY:0,position:{x:0,y:.32,z:0},config});
+ const a=low._contacts({})[0],b=compressed._contacts({})[0];
+ assert.ok(b.compression>a.compression);
+ assert.ok(b.geometry.hardpointValid&&a.geometry.hardpointValid);
+ assert.notEqual(b.geometry.camberDeg,a.geometry.camberDeg);
+ assert.notEqual(b.geometry.wheelOffsetX,a.geometry.wheelOffsetX);
+ assert.notEqual(b.point.x,a.point.x,'hardpoint lateral motion must move the wheel contact lever arm');
+});
+test('changing control-arm pickup points changes solved instant centre and roll centre',()=>{
+ const build=upperX=>new RigidBodyVehicle({surfaceMesh:plane(),groundPlaneY:0,position:{x:0,y:.32,z:0},config:{suspensionGeometry:{front:{hardpoints:{upperInner:{x:upperX,y:.82}}}}}});
+ const a=build(.28),b=build(.38),wa=a._contacts({})[0].geometry,wb=b._contacts({})[0].geometry;
+ assert.ok(wa.hardpointValid&&wb.hardpointValid);
+ assert.ok(Math.abs(wa.instantCenter.x-wb.instantCenter.x)>1e-4||Math.abs(wa.instantCenter.y-wb.instantCenter.y)>1e-4);
+ assert.notEqual(wa.rollCenterHeight,wb.rollCenterHeight);
+});
+test('hardpoint solver safely falls back when requested travel exceeds arm reach',()=>{
+ const e=new RigidBodyVehicle({surfaceMesh:plane(),groundPlaneY:0,position:{x:0,y:.01,z:0}});
+ const g=e._wheelKinematics(0,2,{x:0,y:1,z:0},{});
+ assert.equal(g.hardpointValid,false);
+ assert.ok(Number.isFinite(g.camberDeg)&&Number.isFinite(g.rollCenterHeight));
+});
