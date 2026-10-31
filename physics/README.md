@@ -14,6 +14,8 @@ physics/rigidbody-vehicle-engine.js  suspension, tires, drivetrain, aids, teleme
 physics/playcar-unified.js           3.0 runtime + 1.8-compatible facade
 physics/playcar-physics-engine.js    legacy kinematic engine (compatibility only)
 physics/scene3d.js                   Three.js driving lab (ES module)
+physics/test-scene.js                Three.js proving ground (ES module)
+physics/physics-checks.js            10 deterministic validation scenarios (browser + Node)
 physics/playcar-physics-all-in-one.js generated bundle (do not edit)
 tools/build-bundle.js                bundle generator + syntax gate
 tools/benchmark.js                   fixed-step throughput benchmark
@@ -27,6 +29,7 @@ npm run build     # regenerate physics/playcar-physics-all-in-one.js
 npm test          # 120+ Node tests (node --test)
 npm run bench     # solver/vehicle throughput
 npm run smoke     # boot the real 3D scene headlessly and drive it
+PLAYCAR_SCENE=physics/test-scene.js PLAYCAR_START_Z=88 npm run smoke   # proving ground
 ```
 
 ### Browser
@@ -167,6 +170,27 @@ CDN fallback. It contains:
 Open the page from a static server, e.g. `npx serve .` or `python3 -m http.server`.
 ES modules are used for Three.js, so `file://` will not work.
 
+## The proving ground (`test-scene.html`)
+
+`test-scene.html` is a second, deliberately harsh scene for validating the 3.0
+stack rather than admiring a lap:
+
+- three friction lanes (ice μ 0.18, wet μ 0.60, dry μ 1.00) with per-triangle
+  friction on a triangle mesh;
+- a 15° hill with a 4 m crest and side skirts, a six-cleat washboard, a 2.2 m
+  launch ramp, and a solid 1.8 m wall at the end of the runway;
+- kinematic dummy props (cones and crates) driven by `vehicle.addProp(...)`, so
+  impacts go through the real contact solver;
+- chase camera, live HUD (speed, gear, wheel/chassis contacts, per-contact μ,
+  physics ms) and touch/keyboard driving.
+
+The right-hand panel runs `physics/physics-checks.js` — the same module the Node
+suite executes. It builds ten isolated worlds (rest + sleep, 120 m/s CCD wall,
+slope friction, triangle friction/raycast, ride height, dry/wet/ice braking, ramp
+jump, prop impact, differential layout, determinism) and shows PASS/FAIL with the
+measured detail values, total ms and engine version. Results can be exported as
+JSON. The suite runs automatically once on load and can be re-run at any time.
+
 ## Compatibility
 
 - `physics/playcar-physics-engine.js` remains the legacy 1.8 engine and is still
@@ -206,6 +230,9 @@ any frame rate and uses interpolated poses.
 - lab: the real `scene3d.js` booted headlessly with a stubbed WebGL renderer and
   driven for 300 frames (`npm run smoke`), plus end-to-end drives on the same
   circuit geometry (straight, ramp jump, landing, props, wet weather);
+- proving ground: the real `test-scene.js` driven headlessly, and the browser
+  check suite (`physics/physics-checks.js`) executed in Node with all ten
+  scenarios required to pass;
 - page/build: the generated bundle parses, the lab loads the current bundle
   version, and the single-file build stays in sync.
 

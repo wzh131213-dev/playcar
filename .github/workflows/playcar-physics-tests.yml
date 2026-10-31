@@ -26,18 +26,23 @@ jobs:
       - name: Syntax check every physics module
         run: for f in physics/*.js; do node --check "$f"; done
 
-      - name: Syntax check every inline script on the lab page
+      - name: Syntax check every inline script on the lab pages
         run: |
+          rm -f /tmp/playcar-inline-*.js
           python3 - <<'PY'
           from pathlib import Path
           import re
-          html = Path("index.html").read_text(encoding="utf-8")
-          scripts = re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>", html, re.S)
-          if not scripts:
-              raise SystemExit("No inline scripts found in index.html")
-          for i, script in enumerate(scripts):
-              Path(f"/tmp/playcar-inline-{i}.js").write_text(script, encoding="utf-8")
-          print(f"extracted {len(scripts)} inline script(s)")
+          count = 0
+          for page in ["index.html", "test-scene.html"]:
+              html = Path(page).read_text(encoding="utf-8")
+              scripts = [s for s in re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>", html, re.S) if s.strip()]
+              if not scripts:
+                  raise SystemExit(f"No inline scripts found in {page}")
+              stem = page.replace(".html", "").replace("/", "-")
+              for i, script in enumerate(scripts):
+                  Path(f"/tmp/playcar-inline-{stem}-{i}.js").write_text(script, encoding="utf-8")
+                  count += 1
+          print(f"extracted {count} inline script(s)")
           PY
           for f in /tmp/playcar-inline-*.js; do node --check "$f"; done
 

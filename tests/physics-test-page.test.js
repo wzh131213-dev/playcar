@@ -5,6 +5,8 @@ const fs=require('node:fs');
 const path=require('node:path');
 const root=path.join(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const sceneHtml=fs.readFileSync(path.join(root,'test-scene.html'),'utf8');
+const sceneSource=fs.readFileSync(path.join(root,'physics','test-scene.js'),'utf8');
 const bundle=fs.readFileSync(path.join(root,'physics','playcar-physics-all-in-one.js'),'utf8');
 
 test('root page is the PlayCar interactive physics control center',()=>{
@@ -19,4 +21,32 @@ test('physics page exposes live touch controls, telemetry and automated checks',
   assert.match(bundle,/pointerdown/);
   assert.match(bundle,/requestAnimationFrame/);
   assert.match(bundle,/PlayCarRuntime/);
+});
+
+test('test scene page hosts the proving ground and the real check suite',()=>{
+  assert.match(sceneHtml,/<title>PlayCar · 物理测试场<\/title>/);
+  assert.match(sceneHtml,/id="scene3d"/);
+  assert.match(sceneHtml,/physics\/rigidbody-core\.js\?v=3\.0\.0/);
+  assert.match(sceneHtml,/physics\/rigidbody-vehicle-engine\.js\?v=3\.0\.0/);
+  assert.match(sceneHtml,/physics\/playcar-physics-engine\.js\?v=3\.0\.0/);
+  assert.match(sceneHtml,/physics\/playcar-unified\.js\?v=3\.0\.0/);
+  assert.doesNotMatch(sceneHtml,/playcar-physics-all-in-one/);
+  assert.match(sceneHtml,/physics\/physics-checks\.js\?v=1\.0\.0/);
+  assert.match(sceneHtml,/physics\/test-scene\.js\?v=1\.0\.0/);
+  for(const id of ['scene-gas','scene-brake','scene-left','scene-right','scene-handbrake','scene-reset','scene-follow','run-checks','check-list','download-checks','stat-speed','stat-ms'])
+    assert.ok(sceneHtml.includes('id="'+id+'"'),'missing test scene control: '+id);
+  assert.match(sceneHtml,/PlayCarPhysicsChecks\.runAll\(\)/);
+  assert.match(sceneHtml,/new Blob\(/);
+  assert.match(sceneHtml,/playcar:ready/);
+  assert.doesNotMatch(sceneHtml,/(?:src|href)="file:/);
+});
+test('proving ground scene wires the runtime facade and all six test surfaces',()=>{
+  assert.match(sceneSource,/window\.PlayCarRuntime/);
+  assert.match(sceneSource,/playcar:ready/);
+  assert.match(sceneSource,/TriangleMesh\.fromTriangles/);
+  assert.match(sceneSource,/addProp/);
+  assert.match(sceneSource,/setWeather/);
+  assert.match(sceneSource,/requestAnimationFrame/);
+  for(const marker of ['ICE','WET','DRY','Solid wall','Launch ramp','Washboard'])
+    assert.ok(sceneSource.includes(marker),'missing proving-ground feature: '+marker);
 });
