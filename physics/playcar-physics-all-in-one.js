@@ -688,7 +688,7 @@
   }
 
   const api={PlayCarPhysicsEngine,TriangleMesh,Vector3:V,Quaternion:Q,closestPointOnTriangle,createRenderAdapter,defaults:{...DEFAULTS,bodyHalfExtents:{...DEFAULTS.bodyHalfExtents}},presets:Object.fromEntries(Object.entries(PRESETS).map(([name,config])=>[name,{...config}])),version:'1.8.0'};
-/* PlayCar rigid-body vehicle physics 2.5.0
+/* PlayCar rigid-body vehicle physics 2.7.0
  * Fixed-step 120 Hz, four independent suspension/tire contacts, rigid-body integration.
  * SI-like units: metres, seconds, kilograms, newtons, radians.
  */
@@ -714,8 +714,10 @@ const DEFAULTS={
  wheelbase:2.65,track:1.56,wheelRadius:.32,wheelMass:18,
  suspension:{rest:.32,min:.08,max:.48,stiffness:32000,damping:4200,bump:90000,bumpStopRange:.12},
  suspensionGeometry:{
-  front:{camberStatic:-.5,camberGain:-22,toeStatic:0,toeGain:.35,rollCenterHeight:.12,rollCenterTravelGain:.10,rollCenterLateralGain:.08,rollCamberGain:.28},
-  rear:{camberStatic:-1.0,camberGain:-15,toeStatic:.08,toeGain:-.22,rollCenterHeight:.17,rollCenterTravelGain:.07,rollCenterLateralGain:.06,rollCamberGain:.18}
+  front:{camberStatic:-.5,camberGain:-22,toeStatic:0,toeGain:.35,rollCenterHeight:.12,rollCenterTravelGain:.10,rollCenterLateralGain:.08,rollCamberGain:.28,
+   hardpoints:{enabled:true,upperInner:{x:.28,y:.82},upperOuter:{x:.68,y:.72},lowerInner:{x:.30,y:.34},lowerOuter:{x:.76,y:.30},wheelCenterX:.88}},
+  rear:{camberStatic:-1.0,camberGain:-15,toeStatic:.08,toeGain:-.22,rollCenterHeight:.17,rollCenterTravelGain:.07,rollCenterLateralGain:.06,rollCamberGain:.18,
+   hardpoints:{enabled:true,upperInner:{x:.30,y:.80},upperOuter:{x:.69,y:.70},lowerInner:{x:.32,y:.33},lowerOuter:{x:.77,y:.29},wheelCenterX:.89}}
  },
  tire:{mu:1.08,corneringStiffness:78000,longitudinalStiffness:95000,relaxation:.04,relaxationAngle:.08,loadSensitivity:.12,referenceLoad:3000,aligningTrail:.08,pacejka:{enabled:false,B:0,C:1.3,E:.97,peak:1},frictionEllipse:{longitudinal:1,lateral:1}},
  engine:{peakTorque:280,idleRpm:900,redline:6500,finalDrive:3.9,gears:[3.2,2.1,1.5,1.18,.94,.78],efficiency:.88},
@@ -723,6 +725,48 @@ const DEFAULTS={
  brakeTorque:4200,handbrakeTorque:6500,dragArea:0.68,airDensity:1.225,downforceArea:0.0,
  restitution:.08,collisionFriction:.55,bodyHalf:{x:.88,y:.48,z:2.05},ccd:true
 };
+function circleIntersections(a,ra,b,rb){
+ const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
+ if(d<1e-8||d>ra+rb+1e-8||d<Math.abs(ra-rb)-1e-8)return [];
+ const along=(ra*ra-rb*rb+d*d)/(2*d),height=Math.sqrt(Math.max(0,ra*ra-along*along));
+ const x=a.x+along*dx/d,y=a.y+along*dy/d,px=-dy*height/d,py=dx*height/d;
+ return [{x:x+px,y:y+py},{x:x-px,y:y-py}];
+}
+function lineIntersection(a,b,c,d){
+ const rx=b.x-a.x,ry=b.y-a.y,sx=d.x-c.x,sy=d.y-c.y,den=rx*sy-ry*sx;
+ if(Math.abs(den)<1e-8)return null;
+ const t=((c.x-a.x)*sy-(c.y-a.y)*sx)/den;
+ return{x:a.x+t*rx,y:a.y+t*ry};
+}
+function solveHardpointKinematics(g,compression,fallbackHeight){
+ const hp=g.hardpoints;
+ if(!hp?.enabled)return null;
+ const ui=hp.upperInner,li=hp.lowerInner,uo=hp.upperOuter,lo=hp.lowerOuter;
+ if(![ui,li,uo,lo].every(p=>Number.isFinite(p?.x)&&Number.isFinite(p?.y)))return{valid:false,rollCenterHeight:fallbackHeight,wheelOffsetX:0,camberDeltaDeg:0};
+ const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+ const lowerLength=distance(li,lo),upperLength=distance(ui,uo),uprightLength=distance(uo,lo);
+ const solveAt=travel=>{
+  const y=lo.y+travel,dy=y-li.y,remain=lowerLength*lowerLength-dy*dy;
+  if(remain<0)return null;
+  const dx=Math.sqrt(Math.max(0,remain)),lower={x:li.x+(lo.x>=li.x?dx:-dx),y};
+  const candidates=circleIntersections(ui,upperLength,lower,uprightLength);
+  if(!candidates.length)return null;
+  candidates.sort((a,b)=>distance(a,uo)-distance(b,uo));
+  return{lower,upper:candidates[0]};
+ };
+ const current=solveAt(compression),baseline=solveAt(0);
+ if(!current||!baseline)return{valid:false,rollCenterHeight:fallbackHeight,wheelOffsetX:0,camberDeltaDeg:0,instantCenter:null};
+ const angle=p=>Math.atan2(p.upper.x-p.lower.x,p.upper.y-p.lower.y);
+ const camberDeltaDeg=(angle(current)-angle(baseline))*180/Math.PI;
+ const ic=lineIntersection(ui,current.upper,li,current.lower);
+ const contactX=Number.isFinite(hp.contactPatchX)?hp.contactPatchX:hp.wheelCenterX??.88;
+ let rollCenterHeight=fallbackHeight;
+ if(ic&&Math.abs(ic.x-contactX)>1e-5){
+  const candidate=ic.y*(0-contactX)/(ic.x-contactX);
+  if(Number.isFinite(candidate))rollCenterHeight=V.clamp(candidate,-.15,1.2);
+ }
+ return{valid:true,rollCenterHeight,wheelOffsetX:current.lower.x-lo.x,camberDeltaDeg,instantCenter:ic,upperOuter:current.upper,lowerOuter:current.lower};
+}
 function clone(o){return JSON.parse(JSON.stringify(o));}
 function calculateTireForces(FxRaw,slipAngle,normalLoad,frictionCoefficient,tire={}){
  const cap=Math.max(0,frictionCoefficient*normalLoad),pacejka=tire.pacejka||{};
@@ -741,7 +785,7 @@ function calculateTireForces(FxRaw,slipAngle,normalLoad,frictionCoefficient,tire
 }
 class RigidBodyVehicle{
  constructor(options={}){
-  this.c=Object.assign({},clone(DEFAULTS),options.config||{});this.c.inertia=Object.assign({},DEFAULTS.inertia,options.config?.inertia||{});this.c.com=Object.assign({},DEFAULTS.com,options.config?.com||{});this.c.suspension=Object.assign({},DEFAULTS.suspension,options.config?.suspension||{});this.c.suspensionGeometry={front:Object.assign({},DEFAULTS.suspensionGeometry.front,options.config?.suspensionGeometry?.front||{}),rear:Object.assign({},DEFAULTS.suspensionGeometry.rear,options.config?.suspensionGeometry?.rear||{})};this.c.tire=Object.assign({},DEFAULTS.tire,options.config?.tire||{});this.c.tire.pacejka=Object.assign({},DEFAULTS.tire.pacejka,options.config?.tire?.pacejka||{});this.c.tire.frictionEllipse=Object.assign({},DEFAULTS.tire.frictionEllipse,options.config?.tire?.frictionEllipse||{});this.c.engine=Object.assign({},DEFAULTS.engine,options.config?.engine||{});this.c.antiRoll=Object.assign({},DEFAULTS.antiRoll,options.config?.antiRoll||{});this.c.body=Object.assign({},DEFAULTS.body,options.config?.body||{});this.c.differential=Object.assign({},DEFAULTS.differential,options.config?.differential||{});this.c.aids=Object.assign({},DEFAULTS.aids,options.config?.aids||{});this.c.steering=Object.assign({},DEFAULTS.steering,options.config?.steering||{});
+  this.c=Object.assign({},clone(DEFAULTS),options.config||{});this.c.inertia=Object.assign({},DEFAULTS.inertia,options.config?.inertia||{});this.c.com=Object.assign({},DEFAULTS.com,options.config?.com||{});this.c.suspension=Object.assign({},DEFAULTS.suspension,options.config?.suspension||{});this.c.suspensionGeometry={front:Object.assign({},DEFAULTS.suspensionGeometry.front,options.config?.suspensionGeometry?.front||{}),rear:Object.assign({},DEFAULTS.suspensionGeometry.rear,options.config?.suspensionGeometry?.rear||{})};for(const axle of ['front','rear']){const base=DEFAULTS.suspensionGeometry[axle].hardpoints,custom=options.config?.suspensionGeometry?.[axle]?.hardpoints||{};this.c.suspensionGeometry[axle].hardpoints=Object.assign({},base,custom);for(const key of ['upperInner','upperOuter','lowerInner','lowerOuter'])this.c.suspensionGeometry[axle].hardpoints[key]=Object.assign({},base[key],custom[key]||{});}this.c.tire=Object.assign({},DEFAULTS.tire,options.config?.tire||{});this.c.tire.pacejka=Object.assign({},DEFAULTS.tire.pacejka,options.config?.tire?.pacejka||{});this.c.tire.frictionEllipse=Object.assign({},DEFAULTS.tire.frictionEllipse,options.config?.tire?.frictionEllipse||{});this.c.engine=Object.assign({},DEFAULTS.engine,options.config?.engine||{});this.c.antiRoll=Object.assign({},DEFAULTS.antiRoll,options.config?.antiRoll||{});this.c.body=Object.assign({},DEFAULTS.body,options.config?.body||{});this.c.differential=Object.assign({},DEFAULTS.differential,options.config?.differential||{});this.c.aids=Object.assign({},DEFAULTS.aids,options.config?.aids||{});this.c.steering=Object.assign({},DEFAULTS.steering,options.config?.steering||{});
   this.mesh=options.surfaceMesh||null;this.colliders=options.colliderMeshes||[];this.groundY=options.groundPlaneY??null;
   this.accumulator=0;this.gear=1;this.engineRpm=this.c.engine.idleRpm;this.tick=0;
   this.state={position:{...(options.position||{x:0,y:.65,z:0})},velocity:V.zero(),orientation:Q.id(),angularVelocity:V.zero(),wheelOmega:[0,0,0,0],grounded:false};
@@ -757,7 +801,9 @@ class RigidBodyVehicle{
   const c=this.c,s=this.state,front=index<2,side=(index===0||index===2)?-1:1;
   const g=front?c.suspensionGeometry.front:c.suspensionGeometry.rear;
   const tilt=this._bodyTilt(),travel=V.clamp(compression/Math.max(.001,c.suspension.max-c.suspension.min),-1,1);
-  const camberDeg=g.camberStatic+g.camberGain*compression+g.rollCamberGain*tilt.roll*180/Math.PI;
+  const fallbackRollCenter=Math.max(0,g.rollCenterHeight+g.rollCenterTravelGain*compression+g.rollCenterLateralGain*side*compression);
+  const hardpoint=solveHardpointKinematics(g,compression,fallbackRollCenter);
+  const camberDeg=g.camberStatic+(hardpoint?.valid?hardpoint.camberDeltaDeg:g.camberGain*compression)+g.rollCamberGain*tilt.roll*180/Math.PI;
   const toeDeg=g.toeStatic+g.toeGain*compression;
   const speed=V.len(s.velocity),steer=front?V.clamp(input.steer||0,-1,1)*c.steering.maxAngle*(1-(1-c.steering.highSpeedScale)*V.clamp(speed/55,0,1)):0;
   const n=V.norm(normal),bodyForward=Q.rotate(s.orientation,{x:0,y:0,z:-1});
@@ -768,8 +814,8 @@ class RigidBodyVehicle{
   const right=V.norm(V.cross(forward,n));
   const camberedNormal=Q.rotate(Q.axis(forward,camberDeg*Math.PI/180),n);
   const camberedRight=V.norm(V.cross(forward,camberedNormal));
-  const rollCenterHeight=Math.max(0,g.rollCenterHeight+g.rollCenterTravelGain*compression+g.rollCenterLateralGain*side*compression);
-  return {camber:camberDeg*Math.PI/180,camberDeg,toe:toeDeg*Math.PI/180,toeDeg,steer,forward,right,camberedNormal,camberedRight,rollCenterHeight,travel,side,axle:front?'front':'rear'};
+  const rollCenterHeight=hardpoint?.valid?hardpoint.rollCenterHeight:fallbackRollCenter;
+  return {camber:camberDeg*Math.PI/180,camberDeg,toe:toeDeg*Math.PI/180,toeDeg,steer,forward,right,camberedNormal,camberedRight,rollCenterHeight,travel,side,axle:front?'front':'rear',hardpointValid:!!hardpoint?.valid,instantCenter:hardpoint?.instantCenter||null,upperOuter:hardpoint?.upperOuter||null,lowerOuter:hardpoint?.lowerOuter||null,wheelOffsetX:hardpoint?.wheelOffsetX||0};
  }
  _contacts(input={}){
   const c=this.c,s=this.state,out=[],q=s.orientation,half=c.wheelbase/2,track=c.track/2;
@@ -783,8 +829,9 @@ class RigidBodyVehicle{
    if(!hit)continue;
    let n=V.norm(hit.normal||{x:0,y:1,z:0});if(V.dot(n,{x:0,y:1,z:0})<0)n=V.mul(n,-1);
    const rawLength=hit.distance-c.wheelRadius,length=V.clamp(rawLength, c.suspension.min,c.suspension.max),compression=c.suspension.rest-length;
-   const point=hit.point||V.sub(origin,V.mul(n,hit.distance)),arm=V.sub(point,s.position),pv=this._pointVelocity(arm),vn=V.dot(pv,n);
-   const geometry=this._wheelKinematics(i,compression,n,input),wheelCenter=V.add(point,V.mul(n,c.wheelRadius));
+   const geometry=this._wheelKinematics(i,compression,n,input),rawPoint=hit.point||V.sub(origin,V.mul(n,hit.distance));
+   const bodyRight=Q.rotate(q,{x:1,y:0,z:0}),tangentRight=V.norm(V.sub(bodyRight,V.mul(n,V.dot(bodyRight,n))));
+   const point=V.add(rawPoint,V.mul(tangentRight,geometry.wheelOffsetX*geometry.side)),arm=V.sub(point,s.position),pv=this._pointVelocity(arm),vn=V.dot(pv,n),wheelCenter=V.add(point,V.mul(n,c.wheelRadius));
    out.push({index:i,point,normal:n,arm,compression,length,rawLength,normalVelocity:vn,velocity:pv,local,wheelCenter,geometry,tireForward:geometry.forward,tireRight:geometry.right,friction:Number.isFinite(hit.friction)?Math.max(0,hit.friction):1});
   }
   return out;
@@ -905,7 +952,7 @@ class RigidBodyVehicle{
   this._solveCollisions(dt);
   const after=this._contacts(input);s.grounded=after.length>=2;
   this.tick++;
-  this.telemetry={tick:this.tick,contacts:after.length,normalLoads:normalLoad,forces,suspension:suspensionTelemetry,wheelGeometry:after.map(h=>({wheel:h.index,axle:h.geometry.axle,camber:h.geometry.camber,camberDeg:h.geometry.camberDeg,toe:h.geometry.toe,toeDeg:h.geometry.toeDeg,rollCenterHeight:h.geometry.rollCenterHeight,travel:h.geometry.travel,wheelCenter:{...h.wheelCenter},contactNormal:{...h.normal},tireForward:{...h.tireForward},tireRight:{...h.tireRight}})),rollCenter:{front:frontRollCenterHeight,rear:rearRollCenterHeight,average:effectiveRollCenterHeight,lateralMomentArm},bodyTilt:this._bodyTilt(),bodyStabilization:{...c.body},gear:this.gear,rpm:this.engineRpm,speed:V.len(s.velocity),downforce,absActive:this.aidState.abs,tcsActive:this.aidState.tcs,antiRoll:{front:c.antiRoll.front,rear:c.antiRoll.rear},loadTransfer:loadTransferTelemetry,differential:diffType,driveLayout:driveType,drivenWheels:[...driven]};
+  this.telemetry={tick:this.tick,contacts:after.length,normalLoads:normalLoad,forces,suspension:suspensionTelemetry,wheelGeometry:after.map(h=>({wheel:h.index,axle:h.geometry.axle,camber:h.geometry.camber,camberDeg:h.geometry.camberDeg,toe:h.geometry.toe,toeDeg:h.geometry.toeDeg,rollCenterHeight:h.geometry.rollCenterHeight,travel:h.geometry.travel,hardpointValid:h.geometry.hardpointValid,instantCenter:h.geometry.instantCenter?{...h.geometry.instantCenter}:null,upperOuter:h.geometry.upperOuter?{...h.geometry.upperOuter}:null,lowerOuter:h.geometry.lowerOuter?{...h.geometry.lowerOuter}:null,wheelOffsetX:h.geometry.wheelOffsetX,wheelCenter:{...h.wheelCenter},contactNormal:{...h.normal},tireForward:{...h.tireForward},tireRight:{...h.tireRight}})),rollCenter:{front:frontRollCenterHeight,rear:rearRollCenterHeight,average:effectiveRollCenterHeight,lateralMomentArm},bodyTilt:this._bodyTilt(),bodyStabilization:{...c.body},gear:this.gear,rpm:this.engineRpm,speed:V.len(s.velocity),downforce,absActive:this.aidState.abs,tcsActive:this.aidState.tcs,antiRoll:{front:c.antiRoll.front,rear:c.antiRoll.rear},loadTransfer:loadTransferTelemetry,differential:diffType,driveLayout:driveType,drivenWheels:[...driven]};
  }
  _solveCollisions(dt){
   const s=this.state,c=this.c;
@@ -940,7 +987,7 @@ class RigidBodyVehicle{
  }
  interpolatedState(){const a=this.previous,b=this.state,t=V.clamp(this.accumulator/this.c.fixedDt,0,1);return{position:V.add(a.position,V.mul(V.sub(b.position,a.position),t)),velocity:V.add(a.velocity,V.mul(V.sub(b.velocity,a.velocity),t)),orientation:Q.slerp(a.orientation,b.orientation,t),grounded:b.grounded};}
 }
-root.PlayCarRigidBody={RigidBodyVehicle,Vector3:V,Quaternion:Q,calculateTireForces,defaults:clone(DEFAULTS),version:'2.6.0'};
+root.PlayCarRigidBody={RigidBodyVehicle,Vector3:V,Quaternion:Q,calculateTireForces,defaults:clone(DEFAULTS),version:'2.7.0'};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.PlayCarRigidBody;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
